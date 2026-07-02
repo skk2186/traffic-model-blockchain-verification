@@ -1,0 +1,226 @@
+package com.traffic.wecross.crossverification.service;
+
+import com.traffic.wecross.crossverification.dto.PageResult;
+import com.traffic.wecross.crossverification.dto.VerificationResult;
+import com.traffic.wecross.crossverification.ledger.LedgerSyncResult;
+import com.traffic.wecross.crossverification.record.VerificationRecord;
+import com.traffic.wecross.crossverification.record.VerificationRecordDetail;
+import com.traffic.wecross.crossverification.record.VerifyStatus;
+import com.traffic.wecross.crossverification.record.VerifyType;
+import com.traffic.wecross.crossverification.util.HashUtils;
+import com.traffic.wecross.crossverification.util.JsonUtils;
+import com.traffic.wecross.crossverification.util.VerifyIdGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Service
+public class VerificationRecordService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(VerificationRecordService.class);
+
+    // Temporary development-stage store. Replace with database or trusted ledger query adapter later.
+    private final Map<String, VerificationRecord> records = new ConcurrentHashMap<>();
+    private final Map<String, VerificationRecordDetail> recordDetails = new ConcurrentHashMap<>();
+
+    public VerificationResult createResult(
+            VerifyType verifyType,
+            String businessId,
+            String algorithm,
+            VerifyStatus status,
+            String message,
+            String inputHash,
+            String proofHash,
+            LedgerSyncResult ledger,
+            Map<String, Object> detail) {
+        return createResult(
+                verifyType,
+                businessId,
+                algorithm,
+                status,
+                message,
+                inputHash,
+                proofHash,
+                null,
+                ledger,
+                detail);
+    }
+
+    public VerificationResult createResult(
+            VerifyType verifyType,
+            String businessId,
+            String algorithm,
+            VerifyStatus status,
+            String message,
+            String inputHash,
+            String proofHash,
+            String resultHash,
+            LedgerSyncResult ledger,
+            Map<String, Object> detail) {
+        long now = System.currentTimeMillis();
+        VerificationRecord record = new VerificationRecord();
+        record.recordId = VerifyIdGenerator.nextId(verifyType);
+        record.verifyType = verifyType.name();
+        record.verifyName = verifyType.getVerifyName();
+        record.businessId = normalizeBusinessId(businessId, record.recordId);
+        record.algorithm = algorithm;
+        record.status = status.name();
+        record.ledgerStatus = ledger == null ? null : ledger.status;
+        record.chainPath = ledger == null ? null : ledger.chainPath;
+        record.resourcePath = ledger == null ? null : ledger.resourcePath;
+        record.txHash = ledger == null ? null : ledger.txHash;
+        record.createdAt = now;
+        record.resultHash = resultHash == null ? buildResultHash(record, inputHash, proofHash, detail) : resultHash;
+        records.put(record.recordId, record);
+        VerificationResult result = toResult(record, message, inputHash, proofHash, ledger, detail);
+        recordDetails.put(record.recordId, toDetail(record, inputHash, proofHash, detail, ledger, result));
+        LOGGER.info(
+                "verification record saved recordId={} verifyType={} businessId={} status={} ledgerStatus={}",
+                record.recordId,
+                record.verifyType,
+                record.businessId,
+                record.status,
+                record.ledgerStatus);
+        return result;
+    }
+
+    public PageResult<VerificationRecord> listRecords(
+            VerifyType verifyType,
+            String businessId,
+            VerifyStatus status,
+            Integer page,
+            Integer size) {
+        int safePage = page == null || page < 1 ? 1 : page;
+        int safeSize = size == null || size < 1 ? 10 : Math.min(size, 100);
+        List<VerificationRecord> filtered = new ArrayList<>();
+        for (VerificationRecord record : records.values()) {
+            if (verifyType != null && !verifyType.name().equals(record.verifyType)) {
+                continue;
+            }
+            if (status != null && !status.name().equals(record.status)) {
+                continue;
+            }
+            if (businessId != null && !businessId.equals(record.businessId)) {
+                continue;
+            }
+            filtered.add(record);
+        }
+        filtered.sort(Comparator.comparing((VerificationRecord record) -> record.createdAt).reversed());
+        int fromIndex = Math.min((safePage - 1) * safeSize, filtered.size());
+        int toIndex = Math.min(fromIndex + safeSize, filtered.size());
+        return PageResult.of(new ArrayList<>(filtered.subList(fromIndex, toIndex)), safePage, safeSize, filtered.size());
+    }
+
+    public VerificationRecordDetail getRecordDetail(String recordId) {
+        return recordDetails.get(recordId);
+    }
+
+    public void updateLedger(String recordId, LedgerSyncResult ledger) {
+        VerificationRecord record = records.get(recordId);
+        if (record == null || ledger == null) {
+            return;
+        }
+        record.ledgerStatus = ledger.status;
+        record.chainPath = ledger.chainPath;
+        record.resourcePath = ledger.resourcePath;
+        record.txHash = ledger.txHash;
+        LOGGER.info(
+                "verification ledger status updated recordId={} verifyType={} businessId={} status={} ledgerStatus={}",
+                record.recordId,
+                record.verifyType,
+                record.businessId,
+                record.status,
+                record.ledgerStatus);
+        VerificationRecordDetail detail = recordDetails.get(recordId);
+        if (detail != null) {
+            copyListFields(record, detail);
+            detail.ledger = ledger;
+            if (detail.rawResult != null) {
+                detail.rawResult.ledger = ledger;
+            }
+        }
+    }
+
+    private VerificationResult toResult(
+            VerificationRecord record,
+            String message,
+            String inputHash,
+            String proofHash,
+            LedgerSyncResult ledger,
+            Map<String, Object> detail) {
+        VerificationResult result = new VerificationResult();
+        result.recordId = record.recordId;
+        result.verifyType = record.verifyType;
+        result.verifyName = record.verifyName;
+        result.businessId = record.businessId;
+        result.algorithm = record.algorithm;
+        result.status = record.status;
+        result.message = message;
+        result.inputHash = inputHash;
+        result.proofHash = proofHash;
+        result.resultHash = record.resultHash;
+        result.ledger = ledger;
+        result.detail = detail;
+        result.timestamp = record.createdAt;
+        return result;
+    }
+
+    private VerificationRecordDetail toDetail(
+            VerificationRecord record,
+            String inputHash,
+            String proofHash,
+            Map<String, Object> detailMap,
+            LedgerSyncResult ledger,
+            VerificationResult rawResult) {
+        VerificationRecordDetail detail = new VerificationRecordDetail();
+        copyListFields(record, detail);
+        detail.inputHash = inputHash;
+        detail.proofHash = proofHash;
+        detail.detail = detailMap;
+        detail.ledger = ledger;
+        detail.rawResult = rawResult;
+        return detail;
+    }
+
+    private void copyListFields(VerificationRecord source, VerificationRecord target) {
+        target.recordId = source.recordId;
+        target.verifyType = source.verifyType;
+        target.verifyName = source.verifyName;
+        target.businessId = source.businessId;
+        target.algorithm = source.algorithm;
+        target.status = source.status;
+        target.resultHash = source.resultHash;
+        target.ledgerStatus = source.ledgerStatus;
+        target.chainPath = source.chainPath;
+        target.resourcePath = source.resourcePath;
+        target.txHash = source.txHash;
+        target.createdAt = source.createdAt;
+    }
+
+    private String normalizeBusinessId(String businessId, String recordId) {
+        if (businessId == null || businessId.trim().isEmpty()) {
+            return recordId;
+        }
+        return businessId.trim();
+    }
+
+    private String buildResultHash(
+            VerificationRecord record,
+            String inputHash,
+            String proofHash,
+            Map<String, Object> detail) {
+        return HashUtils.sha256Hex(
+                record.businessId + ":" +
+                        record.verifyType + ":" +
+                        record.status + ":" +
+                        inputHash + ":" +
+                        proofHash + ":" +
+                        record.createdAt + ":" +
+                        JsonUtils.toJson(detail));
+    }
+}
