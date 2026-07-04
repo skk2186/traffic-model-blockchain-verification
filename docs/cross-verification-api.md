@@ -148,6 +148,35 @@ List response:
 }
 ```
 
+### Update a verification record after client-orchestrated ledger sync
+
+```http
+PUT /api/cross-verification/records/{recordId}/ledger
+Content-Type: application/json
+```
+
+```json
+{
+  "ledger": {
+    "enabled": true,
+    "status": "SUCCESS",
+    "chainPath": "payment.bcos3",
+    "resourcePath": "payment.bcos3.TrafficVerifyStore",
+    "txHash": "0x...",
+    "message": "已同步至 bcos3 可信账本"
+  },
+  "chainVerification": {
+    "status": "SUCCESS",
+    "chainPath": "payment.fabric",
+    "resourcePath": "payment.fabric.traffic_verify_store",
+    "txHash": "0x...",
+    "recordKey": "business-id:ZKP"
+  }
+}
+```
+
+This endpoint is used by the WebApp after the same BCOS3-to-Fabric flow used by Merkle verification. It updates the in-memory record list and stores cross-chain details in the record detail payload.
+
 ## 8. Trusted Ledger Sync
 
 Request fields:

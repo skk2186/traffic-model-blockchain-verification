@@ -12,5 +12,7 @@ public class VerificationRecord {
     public String chainPath;
     public String resourcePath;
     public String txHash;
+    public String crossChainStatus;
+    public String crossChainTxHash;
     public Long createdAt;
 }

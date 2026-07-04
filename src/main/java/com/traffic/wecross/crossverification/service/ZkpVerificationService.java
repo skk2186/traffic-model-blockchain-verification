@@ -89,18 +89,23 @@ public class ZkpVerificationService {
         summary.put("proofHash", HashUtils.sha256Hex(JsonUtils.toJson(request.proof)));
         summary.put("proofFieldCount", contentSize(request.proof));
         summary.put("publicSignalCount", contentSize(request.publicSignals));
-        summary.put("hasPiA", hasProofField(request, "piA"));
-        summary.put("hasPiB", hasProofField(request, "piB"));
-        summary.put("hasPiC", hasProofField(request, "piC"));
+        summary.put("hasPiA", hasProofField(request, "piA", "pi_a"));
+        summary.put("hasPiB", hasProofField(request, "piB", "pi_b"));
+        summary.put("hasPiC", hasProofField(request, "piC", "pi_c"));
         return summary;
     }
 
-    private boolean hasProofField(ZkpVerifyRequest request, String key) {
+    private boolean hasProofField(ZkpVerifyRequest request, String... keys) {
         if (!(request.proof instanceof Map)) {
             return false;
         }
-        Object value = ((Map<?, ?>) request.proof).get(key);
-        return value != null && !String.valueOf(value).trim().isEmpty();
+        for (String key : keys) {
+            Object value = ((Map<?, ?>) request.proof).get(key);
+            if (value != null && !String.valueOf(value).trim().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasPublicInput(ZkpVerifyRequest request) {

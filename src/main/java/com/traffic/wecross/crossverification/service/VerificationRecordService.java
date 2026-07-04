@@ -121,6 +121,13 @@ public class VerificationRecordService {
     }
 
     public void updateLedger(String recordId, LedgerSyncResult ledger) {
+        updateLedger(recordId, ledger, null);
+    }
+
+    public void updateLedger(
+            String recordId,
+            LedgerSyncResult ledger,
+            Map<String, Object> chainVerification) {
         VerificationRecord record = records.get(recordId);
         if (record == null || ledger == null) {
             return;
@@ -129,6 +136,10 @@ public class VerificationRecordService {
         record.chainPath = ledger.chainPath;
         record.resourcePath = ledger.resourcePath;
         record.txHash = ledger.txHash;
+        if (chainVerification != null) {
+            record.crossChainStatus = stringValue(chainVerification.get("status"));
+            record.crossChainTxHash = stringValue(chainVerification.get("txHash"));
+        }
         LOGGER.info(
                 "verification ledger status updated recordId={} verifyType={} businessId={} status={} ledgerStatus={}",
                 record.recordId,
@@ -140,8 +151,14 @@ public class VerificationRecordService {
         if (detail != null) {
             copyListFields(record, detail);
             detail.ledger = ledger;
+            if (chainVerification != null && detail.detail != null) {
+                detail.detail.put("chainVerification", chainVerification);
+            }
             if (detail.rawResult != null) {
                 detail.rawResult.ledger = ledger;
+                if (chainVerification != null && detail.rawResult.detail != null) {
+                    detail.rawResult.detail.put("chainVerification", chainVerification);
+                }
             }
         }
     }
@@ -199,7 +216,13 @@ public class VerificationRecordService {
         target.chainPath = source.chainPath;
         target.resourcePath = source.resourcePath;
         target.txHash = source.txHash;
+        target.crossChainStatus = source.crossChainStatus;
+        target.crossChainTxHash = source.crossChainTxHash;
         target.createdAt = source.createdAt;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String normalizeBusinessId(String businessId, String recordId) {

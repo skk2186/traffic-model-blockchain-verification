@@ -11,8 +11,10 @@ public class Groth16ProofVerifier {
             return VerificationDecision.fail("proof must contain Groth16 proof elements");
         }
         Map<?, ?> proofMap = (Map<?, ?>) proof;
-        if (!hasProofElement(proofMap, "piA") || !hasProofElement(proofMap, "piB") || !hasProofElement(proofMap, "piC")) {
-            return VerificationDecision.fail("proof must contain piA, piB and piC");
+        if (!hasProofElement(proofMap, "piA", "pi_a")
+                || !hasProofElement(proofMap, "piB", "pi_b")
+                || !hasProofElement(proofMap, "piC", "pi_c")) {
+            return VerificationDecision.fail("proof must contain piA/pi_a, piB/pi_b and piC/pi_c");
         }
         if (publicSignals == null && !publicInputAvailable) {
             return VerificationDecision.fail("publicSignals or publicInputHash must contain verifiable content");
@@ -24,9 +26,14 @@ public class Groth16ProofVerifier {
         return VerificationDecision.pass();
     }
 
-    private boolean hasProofElement(Map<?, ?> proof, String key) {
-        Object value = proof.get(key);
-        return value != null && !String.valueOf(value).trim().isEmpty();
+    private boolean hasProofElement(Map<?, ?> proof, String... keys) {
+        for (String key : keys) {
+            Object value = proof.get(key);
+            if (value != null && !String.valueOf(value).trim().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class VerificationDecision {
