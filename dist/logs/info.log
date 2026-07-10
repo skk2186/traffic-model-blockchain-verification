@@ -1,0 +1,50 @@
+2026-07-05 16:10:48.184 [main] INFO  Application() - Starting Application using Java 1.8.0_202 on DESKTOP-KQD226K with PID 17884 (E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\dist\apps\wecross-account-manager-1.4.0.jar started by 10851 in E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\dist)
+2026-07-05 16:10:48.192 [main] INFO  Application() - No active profile set, falling back to 1 default profile: "default"
+2026-07-05 16:10:48.698 [main] INFO  RepositoryConfigurationDelegate() - Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-07-05 16:10:48.751 [main] INFO  RepositoryConfigurationDelegate() - Finished Spring Data repository scanning in 46 ms. Found 4 JPA repository interfaces.
+2026-07-05 16:10:49.074 [main] INFO  ApplicationConfig() - Load configuration: Service{address='0.0.0.0', port=8340, sslKey='null', sslCert='null', caCert='null', sslOn=false}
+2026-07-05 16:10:49.075 [main] INFO  ApplicationConfig() - Load configuration: org1-admin
+2026-07-05 16:10:49.075 [main] INFO  ApplicationConfig() - Load configuration: Auth{name='org1', expires=18000, noActiveExpires=600, needMailAuth=false}
+2026-07-05 16:10:49.076 [main] INFO  ApplicationConfig() - Load mail configuration: ApplicationConfig.Mail(address=12345678@qq.com, password=qq12345678, smtpPort=587)
+2026-07-05 16:10:49.076 [main] INFO  ApplicationConfig() - Load configuration: DB{url='jdbc:mysql://localhost:3306/wecross_account_manager?useSSL=false', username='root', password='1085134460Sk', encryptKey='rIBJD38jqSMR@CSM'}
+2026-07-05 16:10:49.078 [main] INFO  ApplicationConfig() -  rsa private: classpath:rsa_private.pem
+2026-07-05 16:10:49.078 [main] INFO  ApplicationConfig() -  rsa public: classpath:rsa_public.pem
+2026-07-05 16:10:49.851 [main] INFO  TomcatWebServer() - Tomcat initialized with port(s): 8340 (http)
+2026-07-05 16:10:49.858 [main] INFO  Http11NioProtocol() - Initializing ProtocolHandler ["http-nio-0.0.0.0-8340"]
+2026-07-05 16:10:49.859 [main] INFO  StandardService() - Starting service [Tomcat]
+2026-07-05 16:10:49.859 [main] INFO  StandardEngine() - Starting Servlet engine: [Apache Tomcat/9.0.83]
+2026-07-05 16:10:49.993 [main] INFO  [/]() - Initializing Spring embedded WebApplicationContext
+2026-07-05 16:10:49.993 [main] INFO  ServletWebServerApplicationContext() - Root WebApplicationContext: initialization completed in 1770 ms
+2026-07-05 16:10:50.164 [main] INFO  LogHelper() - HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-07-05 16:10:50.205 [main] INFO  Version() - HHH000412: Hibernate ORM core version 5.6.15.Final
+2026-07-05 16:10:50.329 [main] INFO  Version() - HCANN000001: Hibernate Commons Annotations {5.1.2.Final}
+2026-07-05 16:10:50.441 [main] INFO  DruidDataSource() - {dataSource-1} inited
+2026-07-05 16:10:50.574 [main] INFO  Dialect() - HHH000400: Using dialect: org.hibernate.dialect.MySQL5InnoDBDialect
+2026-07-05 16:10:51.215 [main] INFO  JtaPlatformInitiator() - HHH000490: Using JtaPlatform implementation: [org.hibernate.engine.transaction.jta.platform.internal.NoJtaPlatform]
+2026-07-05 16:10:51.223 [main] INFO  LocalContainerEntityManagerFactoryBean() - Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-07-05 16:10:51.758 [main] INFO  SecKeyEntryConverter() - initCryptoInterface: com.webank.wecross.account.service.crypto.CryptoAESBase64PrefixImpl@7b3c2ae0
+2026-07-05 16:10:51.758 [main] INFO  TokenSecKeyEntryConverter() - [TokenSec] initCryptoInterface: com.webank.wecross.account.service.crypto.CryptoAESBase64PrefixImpl@7b3c2ae0
+2026-07-05 16:10:51.812 [main] INFO  UAManager() - AdminUA not found. Generate: org1-admin
+2026-07-05 16:10:52.752 [main] INFO  UAManager() - AdminUA generate success!
+2026-07-05 16:10:52.752 [main] INFO  UAManagerConfig() - ==> newUAManager: com.webank.wecross.account.service.account.UAManager@79777da7
+2026-07-05 16:10:52.771 [main] INFO  RestRequestFilter() - URL encrypt sets: [/auth/login, /auth/register, /auth/changePassword]
+2026-07-05 16:10:52.795 [main] WARN  JpaBaseConfiguration$JpaWebConfiguration() - spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-07-05 16:10:52.904 [main] WARN  WebSecurity() - You are asking Spring Security to ignore Ant [pattern='/auth/register']. This is not recommended -- please use permitAll via HttpSecurity#authorizeHttpRequests instead.
+2026-07-05 16:10:52.904 [main] INFO  DefaultSecurityFilterChain() - Will not secure Ant [pattern='/auth/register']
+2026-07-05 16:10:52.905 [main] WARN  WebSecurity() - You are asking Spring Security to ignore Ant [pattern='/auth/pub']. This is not recommended -- please use permitAll via HttpSecurity#authorizeHttpRequests instead.
+2026-07-05 16:10:52.905 [main] INFO  DefaultSecurityFilterChain() - Will not secure Ant [pattern='/auth/pub']
+2026-07-05 16:10:52.905 [main] WARN  WebSecurity() - You are asking Spring Security to ignore Ant [pattern='/auth/routerLogin']. This is not recommended -- please use permitAll via HttpSecurity#authorizeHttpRequests instead.
+2026-07-05 16:10:52.905 [main] INFO  DefaultSecurityFilterChain() - Will not secure Ant [pattern='/auth/routerLogin']
+2026-07-05 16:10:52.905 [main] WARN  WebSecurity() - You are asking Spring Security to ignore Ant [pattern='/auth/need-mail-auth']. This is not recommended -- please use permitAll via HttpSecurity#authorizeHttpRequests instead.
+2026-07-05 16:10:52.905 [main] INFO  DefaultSecurityFilterChain() - Will not secure Ant [pattern='/auth/need-mail-auth']
+2026-07-05 16:10:52.905 [main] WARN  WebSecurity() - You are asking Spring Security to ignore Ant [pattern='/auth/mail-code']. This is not recommended -- please use permitAll via HttpSecurity#authorizeHttpRequests instead.
+2026-07-05 16:10:52.905 [main] INFO  DefaultSecurityFilterChain() - Will not secure Ant [pattern='/auth/mail-code']
+2026-07-05 16:10:52.905 [main] WARN  WebSecurity() - You are asking Spring Security to ignore Ant [pattern='/auth/authCode']. This is not recommended -- please use permitAll via HttpSecurity#authorizeHttpRequests instead.
+2026-07-05 16:10:52.905 [main] INFO  DefaultSecurityFilterChain() - Will not secure Ant [pattern='/auth/authCode']
+2026-07-05 16:10:53.121 [main] INFO  DefaultSecurityFilterChain() - Will secure any request with [org.springframework.security.web.session.DisableEncodeUrlFilter@11ee671f, org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter@18209303, org.springframework.security.web.context.SecurityContextPersistenceFilter@1c972ae6, org.springframework.security.web.header.HeaderWriterFilter@1f521c69, org.springframework.web.filter.CorsFilter@57df09a7, org.springframework.security.web.authentication.logout.LogoutFilter@15bb8ed5, com.webank.wecross.account.service.authentication.JwtLoginFilter@6aa9a93b, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter@147059f8, org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter@4c5e4bfa, org.springframework.security.web.authentication.ui.DefaultLogoutPageGeneratingFilter@81dfdee, com.webank.wecross.account.service.authentication.JwtAuthenticationFilter@14b9df65, org.springframework.security.web.savedrequest.RequestCacheAwareFilter@146fa9c0, org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter@47ae6c18, org.springframework.security.web.authentication.AnonymousAuthenticationFilter@3b046e64, org.springframework.security.web.session.SessionManagementFilter@3aeb267, org.springframework.security.web.access.ExceptionTranslationFilter@3e12c5de, org.springframework.security.web.access.intercept.FilterSecurityInterceptor@7affee54]
+2026-07-05 16:10:53.326 [main] INFO  Http11NioProtocol() - Starting ProtocolHandler ["http-nio-0.0.0.0-8340"]
+2026-07-05 16:10:53.353 [main] INFO  TomcatWebServer() - Tomcat started on port(s): 8340 (http) with context path ''
+2026-07-05 16:10:53.364 [main] INFO  Application() - Started Application in 5.464 seconds (JVM running for 6.041)
+2026-07-05 16:40:09.125 [SpringApplicationShutdownHook] INFO  LocalContainerEntityManagerFactoryBean() - Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-07-05 16:40:09.127 [SpringApplicationShutdownHook] INFO  DruidDataSource() - {dataSource-1} closing ...
+2026-07-05 16:40:09.136 [SpringApplicationShutdownHook] INFO  DruidDataSource() - {dataSource-1} closed
