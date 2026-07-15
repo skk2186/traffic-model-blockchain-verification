@@ -1,0 +1,4 @@
+def main(private u32 speed, u32 minSpeed, u32 maxSpeed) {
+    assert(minSpeed <= speed);
+    assert(speed <= maxSpeed);
+}

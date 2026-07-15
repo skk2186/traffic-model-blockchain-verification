@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 @Service
 public class ThresholdSignatureVerificationService {
@@ -44,16 +46,27 @@ public class ThresholdSignatureVerificationService {
     private VerificationResult verifyInternal(ThresholdSignatureVerifyRequest request) {
         String messageHash = HashUtils.sha256Hex(request.message);
         String participantSetHash = participantSetHash(request.participantIds);
-        String signatureHash = HashUtils.sha256Hex(JsonUtils.toJson(request.signatureBundle));
+        String signatureHash = HashUtils.sha256Hex(JsonUtils.toJson(canonicalSignatureBundle(request.signatureBundle)));
 
         ThresholdSignatureVerifier.VerificationDecision decision =
-                thresholdSignatureVerifier.verify(request.threshold, request.participantIds, request.signatureBundle);
+                thresholdSignatureVerifier.verify(
+                        request.message,
+                        request.threshold,
+                        request.totalNodes,
+                        request.participantIds,
+                        request.signatureBundle);
 
         Map<String, Object> detail = JsonUtils.detail();
-        detail.put("threshold", request.threshold);
-        detail.put("totalNodes", request.totalNodes);
+        detail.put("verifierMode", decision.getVerifierMode());
+        detail.put("verifierEngine", decision.getVerifierEngine());
+        detail.put("scheme", decision.getScheme());
+        detail.put("policyId", decision.getPolicyId());
+        detail.put("validSignatureCount", decision.getValidSignatureCount());
+        detail.put("threshold", decision.getThreshold());
+        detail.put("totalNodes", decision.getTotalNodes());
         detail.put("participantCount", request.participantIds.size());
-        detail.put("participantIds", request.participantIds);
+        detail.put("participantIds", decision.getParticipantIds());
+        detail.put("participantResults", decision.getParticipantResults());
         detail.put("messageHash", messageHash);
         detail.put("signatureHash", signatureHash);
         detail.put("participantSetHash", participantSetHash);
@@ -93,6 +106,28 @@ public class ThresholdSignatureVerificationService {
         List<Integer> normalized = new ArrayList<>(participantIds);
         Collections.sort(normalized);
         return HashUtils.sha256Hex(JsonUtils.toJson(normalized));
+    }
+
+    private Map<String, Object> canonicalSignatureBundle(Map<String, Object> signatureBundle) {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("scheme", signatureBundle.get("scheme"));
+        canonical.put("policyId", signatureBundle.get("policyId"));
+        Object participantSignatures = signatureBundle.get("participantSignatures");
+        if (participantSignatures instanceof Map) {
+            Map<Integer, Object> sorted = new TreeMap<>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) participantSignatures).entrySet()) {
+                Integer participantId = Integer.valueOf(String.valueOf(entry.getKey()));
+                sorted.put(participantId, entry.getValue());
+            }
+            Map<String, Object> normalized = new LinkedHashMap<>();
+            for (Map.Entry<Integer, Object> entry : sorted.entrySet()) {
+                normalized.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+            canonical.put("participantSignatures", normalized);
+        } else {
+            canonical.put("participantSignatures", participantSignatures);
+        }
+        return canonical;
     }
 
     private VerificationResult buildErrorResult(ThresholdSignatureVerifyRequest request, String message) {

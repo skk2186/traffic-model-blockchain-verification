@@ -44,17 +44,30 @@ public class ZkpVerificationService {
                 ? HashUtils.sha256Hex(JsonUtils.toJson(request.publicSignals))
                 : request.publicInputHash.trim();
         String proofHash = HashUtils.sha256Hex(JsonUtils.toJson(request.proof));
+        String effectiveKeyId = request.verifyingKeyId == null || request.verifyingKeyId.trim().isEmpty()
+                ? request.circuitId
+                : request.verifyingKeyId.trim();
 
         Groth16ProofVerifier.VerificationDecision decision =
-                groth16ProofVerifier.verify(request.proof, request.publicSignals, hasPublicInput(request));
+                groth16ProofVerifier.verify(
+                        request.circuitId,
+                        effectiveKeyId,
+                        request.proof,
+                        request.publicSignals);
 
         Map<String, Object> detail = JsonUtils.detail();
         detail.put("circuitId", request.circuitId);
+        detail.put("verifyingKeyId", decision.getVerifyingKeyId());
         detail.put("publicInputHash", inputHash);
         detail.put("proofSummary", proofSummary(request));
-        if (decision.getReason() != null) {
-            detail.put("reason", decision.getReason());
-        }
+        detail.put("verifierMode", decision.getVerifierMode());
+        detail.put("verifierEngine", decision.getVerifierEngine());
+        detail.put("scheme", decision.getScheme());
+        detail.put("curve", decision.getCurve());
+        detail.put("durationMillis", decision.getDurationMillis());
+        detail.put("exitCode", decision.getExitCode());
+        detail.put("reason", decision.isPassed() ? decision.getReasonMessage() : decision.getReasonCode());
+        detail.put("reasonMessage", decision.getReasonMessage());
 
         VerifyStatus status = decision.isPassed() ? VerifyStatus.PASS : VerifyStatus.FAIL;
         String message = decision.isPassed() ? "隐私证明验证通过" : "隐私证明验证未通过";
@@ -92,7 +105,21 @@ public class ZkpVerificationService {
         summary.put("hasPiA", hasProofField(request, "piA", "pi_a"));
         summary.put("hasPiB", hasProofField(request, "piB", "pi_b"));
         summary.put("hasPiC", hasProofField(request, "piC", "pi_c"));
+        summary.put("hasA", hasNativeProofField(request, "a"));
+        summary.put("hasB", hasNativeProofField(request, "b"));
+        summary.put("hasC", hasNativeProofField(request, "c"));
         return summary;
+    }
+
+    private boolean hasNativeProofField(ZkpVerifyRequest request, String key) {
+        if (!(request.proof instanceof Map)) {
+            return false;
+        }
+        Map<?, ?> proof = (Map<?, ?>) request.proof;
+        Object inner = proof.get("proof");
+        Map<?, ?> nativeProof = inner instanceof Map ? (Map<?, ?>) inner : proof;
+        Object value = nativeProof.get(key);
+        return value != null && !String.valueOf(value).trim().isEmpty();
     }
 
     private boolean hasProofField(ZkpVerifyRequest request, String... keys) {
@@ -106,11 +133,6 @@ public class ZkpVerificationService {
             }
         }
         return false;
-    }
-
-    private boolean hasPublicInput(ZkpVerifyRequest request) {
-        return !isEmptyContent(request.publicSignals)
-                || (request.publicInputHash != null && !request.publicInputHash.trim().isEmpty());
     }
 
     private boolean isEmptyContent(Object value) {

@@ -1,0 +1,14 @@
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\testsupport\ThresholdSignatureTestFixtures.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\service\ZkpVerificationServiceTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\api\LegacyVerificationControllerCompatibilityTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\controller\ZkpVerificationControllerTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\service\Groth16ProofVerifierTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\zkp\ZokratesProcessRunnerTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\config\ZkpVerificationPropertiesTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\zkp\ZokratesGroth16IntegrationTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\service\ThresholdSignatureVerificationServiceTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\service\ThresholdSignatureVerifierTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\CrossVerificationApplicationContextTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\controller\ThresholdSignatureVerificationControllerTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\zkp\VerifyingKeyResolverTest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\test\java\com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest.java

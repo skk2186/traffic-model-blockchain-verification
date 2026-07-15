@@ -1,55 +1,203 @@
-# 交通数据可信验证后端交接说明
+# 多模态交通可信验证后端技术文档
 
-本文档用于项目交接，说明当前后端已经完成的接口能力、兼容接口、运行方式，以及后续成员需要继续完善的功能边界。
+本项目是交通数据跨机构协作场景下的可信验证后端，基于 Spring Boot 提供三类验证能力：数据完整性验证、隐私证明验证、多方签名验证。后端同时负责保存验证记录，并可在验证完成后把摘要结果同步到可信账本。
 
-## 1. 项目概览
+首次接手项目时，建议先按“快速启动”跑通健康检查和 Merkle 验证，再补齐 ZoKrates、MySQL、WeCross 等真实环境。
 
-本项目是交通数据跨链可信验证后端，当前服务基于 Spring Boot 2.7.x，默认启动端口为 `8088`，主启动类为：
+## 1. 功能概览
+
+### 1.1 核心验证能力
+
+| 能力 | 接口 | 算法/引擎 | 说明 |
+| --- | --- | --- | --- |
+| 数据完整性验证 | `POST /api/cross-verification/merkle/verify` | Merkle-SHA256 | 对交通数据批次生成 Merkle 根，或和前端/链上给出的根哈希进行比对 |
+| 隐私证明验证 | `POST /api/cross-verification/zkp/verify` | Groth16 + ZoKrates CLI | 校验 ZoKrates 生成的 Groth16 证明，默认使用真实验证模式 |
+| 多方签名验证 | `POST /api/cross-verification/threshold-signature/verify` | ECDSA-P256-SHA256 | 按策略文件校验参与方签名数量是否达到阈值 |
+| 验证记录查询 | `GET /api/cross-verification/records` | 内存或 MySQL | 支持按验证类型、业务 ID、状态分页查询 |
+| 账本状态回写 | `PUT /api/cross-verification/records/{recordId}/ledger` | 记录更新 | 前端或编排层完成链上同步后，可回写账本状态 |
+
+### 1.2 兼容接口
+
+项目仍保留旧版 `/api/verification/*` 兼容接口，用于适配历史前端或旧联调脚本。新开发优先使用 `/api/cross-verification/*`。
+
+旧接口包括：
+
+- `GET /api/verification/health`
+- `POST /api/verification/merkle`
+- `POST /api/verification/groth16`
+- `POST /api/verification/threshold-signature`
+- `POST /api/verification/full`
+
+### 1.3 记录存储
+
+验证记录有两种存储模式：
+
+- `memory`：进程内存存储，适合快速调试，服务重启后记录丢失。
+- `mysql`：写入 MySQL 表 `verification_records`，适合联调、演示和长期保存。
+
+`src/main/resources/application.properties` 默认是 `memory`；`scripts/start-backend.ps1` 默认使用 `mysql`。如果只是首次跑通，可以显式传入 `-RecordStorage memory`。
+
+### 1.4 可信账本同步
+
+请求体中的 `writeLedger=true` 会触发账本同步逻辑。当前实现通过反射寻找旧模块中的 `com.traffic.wecross.api.WeCrossGateway`，并调用其写链能力：
+
+- 找到并调用成功：返回 `SUCCESS` 或 `FAILED`。
+- 未接入网关或状态暂不能确认：返回 `PENDING`。
+- 未请求写链：返回 `DISABLED`。
+
+因此，业务验证结果和账本同步结果是两个层次：验证可以 `PASS`，账本状态仍可能是 `PENDING`。
+
+## 2. 技术栈与目录
+
+### 2.1 技术栈
+
+- JDK 8
+- Maven
+- Spring Boot 2.7.18
+- MySQL 8.x，可选但推荐
+- ZoKrates 0.8.7，用于真实 Groth16 验证
+- WeCross Java SDK 1.4.0，用于兼容可信账本集成
+
+### 2.2 关键目录
 
 ```text
-com.traffic.wecross.crossverification.CrossVerificationApplication
+src/main/java/com/traffic/wecross/crossverification
+  controller/       新版验证接口
+  service/          Merkle、ZKP、多方签名、记录服务
+  zkp/              ZoKrates 证明规范化和进程调用
+  threshold/        多方签名策略加载和公钥解析
+  record/           验证记录模型和 MySQL 仓储
+  ledger/           可信账本同步适配
+
+src/main/java/com/traffic/wecross/api
+  旧版 /api/verification 兼容层
+
+config/zkp
+  ZKP 验证公钥目录
+
+config/threshold
+  多方签名策略文件目录
+
+crypto/zokrates/traffic-speed-range-v1
+  ZoKrates 电路、构建脚本、证明样例
+
+scripts
+  Windows PowerShell 启动脚本
+
+scripts/mysql
+  MySQL 建库建表脚本
+
+docs
+  补充 API 和数据库说明
 ```
 
-当前代码同时保留了两套接口路径：
+## 3. 环境要求
 
-| 接口路径 | 用途 | 状态 |
-| --- | --- | --- |
-| `/api/cross-verification/*` | 新版可信验证接口，供新版前端模块使用 | 已实现基础可用能力 |
-| `/api/verification/*` | 旧版前端兼容接口 | 已恢复兼容适配，不建议删除 |
+### 3.1 基础环境
 
-新版接口下已经拆分为三类独立验证能力：
-
-- 数据完整性验证：Merkle-SHA256
-- 隐私证明验证：Groth16 接口适配
-- 多方签名验证：Threshold-Signature 接口适配
-
-三类验证都会生成统一的验证记录，并可按需尝试同步可信账本。
-
-## 2. 本地运行
-
-### 2.1 环境要求
-
-- JDK 8+
-- Maven 3.x
-- 默认服务端口：`8088`
-- WeCross Router 默认地址：`http://127.0.0.1:8250`
-
-### 2.2 编译
+确认 Java 和 Maven 可用：
 
 ```powershell
-mvn -q -DskipTests compile
+java -version
+mvn -version
 ```
 
-### 2.3 启动
+要求：
+
+- Java 编译目标为 1.8。
+- Maven 能访问项目依赖。脚本默认使用项目内 `.m2/repository` 作为本地仓库。
+- Windows 推荐使用 PowerShell 5.1 或更新版本。
+
+### 3.2 ZoKrates 环境
+
+真实 ZKP 验证依赖 ZoKrates CLI。默认约定路径为：
+
+```text
+<项目族根目录>\ZoKrates\target\release\zokrates.exe
+```
+
+也可以通过启动参数或环境变量指定：
 
 ```powershell
+$env:ZOKRATES_EXECUTABLE="E:\path\to\zokrates.exe"
+```
+
+本项目内置 `traffic-speed-range-v1` 示例电路，证明含义是：私有速度值 `speed` 位于公开区间 `[minSpeed, maxSpeed]` 内。示例使用：
+
+- 私有输入：`speed=60`
+- 公开输入：`minSpeed=30`、`maxSpeed=80`
+- 曲线：`bn128`
+- 证明系统：`g16`
+- ZoKrates backend：`ark`
+
+构建电路和生成样例：
+
+```powershell
+.\crypto\zokrates\traffic-speed-range-v1\scripts\build.ps1 -ZokratesPath $env:ZOKRATES_EXECUTABLE
+.\crypto\zokrates\traffic-speed-range-v1\scripts\generate-valid-proof.ps1 -ZokratesPath $env:ZOKRATES_EXECUTABLE
+.\crypto\zokrates\traffic-speed-range-v1\scripts\verify-proof.ps1 -ZokratesPath $env:ZOKRATES_EXECUTABLE
+```
+
+说明：
+
+- `build.ps1` 会生成运行时产物到 `runtime/zkp/traffic-speed-range-v1/`。
+- 公开验证密钥会复制到 `crypto/zokrates/traffic-speed-range-v1/keys/verification.key`。
+- 服务默认从 `config/zkp/{verifyingKeyId}/verification.key` 查找验证密钥。仓库已提供 `config/zkp/traffic-speed-range-v1/verification.key`。
+- 证明文件样例在 `crypto/zokrates/traffic-speed-range-v1/fixtures/valid/`。
+
+### 3.3 MySQL 环境
+
+生产或联调建议开启 MySQL 记录存储。先创建数据库：
+
+```powershell
+mysql -uroot -p < .\scripts\mysql\verification-records.sql
+```
+
+如果使用 Navicat，也可以打开 `scripts/mysql/verification-records.sql` 直接执行。
+
+默认连接串：
+
+```text
+jdbc:mysql://127.0.0.1:3306/traffic_verification?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+```
+
+当 `VERIFICATION_RECORDS_MYSQL_INITIALIZE_SCHEMA=true` 时，只要数据库存在，后端会自动创建或补齐 `verification_records` 表。
+
+### 3.4 WeCross/可信账本环境
+
+可信账本同步是可选能力。默认配置：
+
+```properties
+wecross.mode=trusted-ledger
+wecross.contract-method=saveRecord
+wecross.default-targets=traffic.bcos30.VerificationStore,traffic.fabric20.VerificationStore
+wecross.router-url=http://127.0.0.1:8250
+```
+
+如果只是验证后端功能，可以把请求中的 `writeLedger` 设为 `false`。如果设为 `true`，但没有接入可用的 WeCross 网关，接口通常仍会返回验证结果，同时账本状态为 `PENDING` 或 `FAILED`。
+
+## 4. 快速启动
+
+### 4.1 最快跑通：内存记录模式
+
+适合第一次拉取代码，只验证服务能启动、接口能调用：
+
+```powershell
+cd E:\path\to\traffic-model-blockchain-verification
+$env:VERIFICATION_RECORDS_STORAGE="memory"
 mvn -q spring-boot:run
 ```
 
-启动后可先访问健康检查：
+服务地址：
 
-```http
-GET http://127.0.0.1:8088/api/cross-verification/health
+```text
+http://127.0.0.1:8088
+```
+
+健康检查：
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8088/api/cross-verification/health"
 ```
 
 预期返回：
@@ -62,378 +210,389 @@ GET http://127.0.0.1:8088/api/cross-verification/health
 }
 ```
 
-## 3. 已完成的新版接口
+### 4.2 推荐启动：PowerShell 脚本
 
-### 3.1 健康检查
+脚本会设置 ZoKrates、验证模式、记录存储和 Maven 本地仓库：
+
+```powershell
+.\scripts\start-backend.ps1 `
+  -ZokratesPath "E:\path\to\zokrates.exe" `
+  -RecordStorage memory
+```
+
+使用 MySQL 存储：
+
+```powershell
+.\scripts\start-backend.ps1 `
+  -ZokratesPath "E:\path\to\zokrates.exe" `
+  -RecordStorage mysql `
+  -MysqlUrl "jdbc:mysql://127.0.0.1:3306/traffic_verification?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true" `
+  -MysqlUsername "root" `
+  -MysqlPassword "your_password"
+```
+
+### 4.3 后台启动示例
+
+如果希望后端在后台运行：
+
+```powershell
+$env:VERIFICATION_RECORDS_STORAGE="memory"
+Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+  "-NoProfile",
+  "-ExecutionPolicy", "Bypass",
+  "-Command",
+  "cd '$PWD'; mvn -q spring-boot:run *> backend-run.log"
+)
+```
+
+查看端口：
+
+```powershell
+netstat -ano | Select-String ":8088"
+```
+
+停止时根据 `netstat` 输出的 PID 执行：
+
+```powershell
+Stop-Process -Id <PID> -Force
+```
+
+## 5. 配置项
+
+常用配置可通过环境变量覆盖。
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `ZKP_MODE` | `real` | ZKP 验证模式，真实模式调用 ZoKrates |
+| `ZKP_ALLOW_LEGACY_MOCK` | `false` | 是否允许旧 mock ZKP 校验；真实环境保持 `false` |
+| `ZOKRATES_EXECUTABLE` | 本机 ZoKrates 路径 | ZoKrates CLI 路径 |
+| `ZKP_KEY_ROOT` | `config/zkp` | 验证密钥根目录 |
+| `ZKP_TEMP_ROOT` | `runtime/zkp-temp` | ZKP 临时工作目录 |
+| `ZKP_TIMEOUT_MILLIS` | `30000` | 单次 ZoKrates 验证超时时间 |
+| `THRESHOLD_SIGNATURE_MODE` | `real` | 多方签名验证模式 |
+| `THRESHOLD_SIGNATURE_ALLOW_LEGACY_MOCK` | `false` | 是否允许旧 mock 多方签名校验 |
+| `VERIFICATION_RECORDS_STORAGE` | `memory` | 记录存储模式：`memory` 或 `mysql` |
+| `VERIFICATION_RECORDS_MYSQL_URL` | 空 | MySQL JDBC URL |
+| `VERIFICATION_RECORDS_MYSQL_USERNAME` | `root` | MySQL 用户名 |
+| `VERIFICATION_RECORDS_MYSQL_PASSWORD` | 空 | MySQL 密码 |
+| `VERIFICATION_RECORDS_MYSQL_INITIALIZE_SCHEMA` | `true` | 是否自动初始化记录表 |
+| `WECROSS_ROUTER_URL` | `http://127.0.0.1:8250` | WeCross Router 地址 |
+| `WECROSS_DEFAULT_TARGETS` | `traffic.bcos30.VerificationStore,traffic.fabric20.VerificationStore` | 默认写链目标 |
+
+## 6. 接口使用
+
+### 6.1 健康检查
 
 ```http
 GET /api/cross-verification/health
 ```
 
-用途：确认服务是否启动，以及新版 API 前缀是否可访问。
+### 6.2 Merkle 数据完整性验证
 
-### 3.2 Merkle 数据完整性验证
+请求：
 
-```http
-POST /api/cross-verification/merkle/verify
-Content-Type: application/json
+```powershell
+$body = @{
+  businessId = "traffic-batch-001"
+  dataSourceName = "vehicle-speed-records"
+  leafItems = @("record-1", "record-2", "record-3")
+  expectedRoot = ""
+  sampleIndex = 1
+  writeLedger = $false
+  ledgerTargets = @()
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8088/api/cross-verification/merkle/verify" `
+  -ContentType "application/json" `
+  -Body $body
 ```
 
-请求示例：
+说明：
+
+- `expectedRoot` 为空时，后端只生成本批数据的 Merkle 根并返回 `PASS`。
+- `expectedRoot` 非空时，必须是 64 位 SHA-256 十六进制字符串；后端会和计算出的根哈希比对。
+- `sampleIndex` 用于生成指定叶子的 Merkle 证明路径。
+
+### 6.3 ZKP 隐私证明验证
+
+使用内置有效样例：
+
+```powershell
+$proof = Get-Content ".\crypto\zokrates\traffic-speed-range-v1\fixtures\valid\proof.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+$signals = Get-Content ".\crypto\zokrates\traffic-speed-range-v1\fixtures\valid\public-signals.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+
+$body = @{
+  businessId = "traffic-zkp-valid"
+  circuitId = "traffic-speed-range-v1"
+  verifyingKeyId = "traffic-speed-range-v1"
+  proof = $proof
+  publicSignals = $signals
+  writeLedger = $false
+  ledgerTargets = @()
+} | ConvertTo-Json -Depth 30
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8088/api/cross-verification/zkp/verify" `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+说明：
+
+- `circuitId` 标识业务电路。
+- `verifyingKeyId` 为空时默认使用 `circuitId`。
+- 真实模式会从 `config/zkp/{verifyingKeyId}/verification.key` 查找验证密钥。
+- `proof` 支持原生 ZoKrates proof JSON；`publicSignals` 可使用 proof 中的 `inputs` 数组。
+
+### 6.4 多方签名验证
+
+仓库根目录提供了三个样例：
+
+- `threshold-valid-request.json`
+- `threshold-two-valid-request.json`
+- `threshold-forged-request.json`
+
+调用有效样例：
+
+```powershell
+$body = Get-Content ".\threshold-valid-request.json" -Raw -Encoding UTF8
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://127.0.0.1:8088/api/cross-verification/threshold-signature/verify" `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+真实模式请求格式：
 
 ```json
 {
-  "businessId": "traffic-batch-001",
-  "dataSourceName": "vehicle-speed-records",
-  "leafItems": ["record-1", "record-2", "record-3"],
-  "expectedRoot": "",
-  "sampleIndex": 1,
-  "writeLedger": false,
-  "ledgerTargets": []
-}
-```
-
-已完成能力：
-
-- 对 `leafItems` 每一项计算 SHA-256 叶子哈希。
-- 构建 Merkle 树，奇数节点时复制最后一个节点参与下一层计算。
-- 返回根哈希 `resultHash` / `detail.rootHash`。
-- 如果传入 `expectedRoot`，会与计算得到的根哈希比较，返回 `PASS` 或 `FAIL`。
-- 如果传入 `sampleIndex`，返回对应叶子哈希和 `proofPath`。
-- 生成统一验证记录，可通过记录接口查询。
-- 支持 `writeLedger=true` 时进入可信账本同步流程。
-
-主要校验规则：
-
-- `businessId` 必填。
-- `leafItems` 必填且不能为空。
-- `sampleIndex` 必须在叶子数组范围内。
-- `expectedRoot` 如果传入，必须是 64 位十六进制 SHA-256 字符串。
-
-### 3.3 Groth16 隐私证明验证
-
-```http
-POST /api/cross-verification/zkp/verify
-Content-Type: application/json
-```
-
-请求示例：
-
-```json
-{
-  "businessId": "traffic-proof-001",
-  "circuitId": "traffic-speed-range-v1",
-  "proof": {
-    "piA": "0xabc",
-    "piB": "0xdef",
-    "piC": "0x123"
-  },
-  "publicSignals": {
-    "batchCommitment": "0x9f01"
-  },
-  "publicInputHash": "",
-  "writeLedger": false,
-  "ledgerTargets": []
-}
-```
-
-已完成能力：
-
-- 接收 Groth16 证明结构、公开信号、公开输入哈希。
-- 如果未传 `publicInputHash`，会根据 `publicSignals` 计算输入哈希。
-- 对 `proof` 计算 `proofHash`，返回摘要信息而不是直接回显完整证明。
-- 检查 `proof` 中是否包含 `piA`、`piB`、`piC`。
-- 支持通过 `proof.valid=false` 模拟验证失败。
-- 生成统一验证记录，可通过记录接口查询。
-- 支持 `writeLedger=true` 时进入可信账本同步流程。
-
-当前边界：
-
-- 目前 `Groth16ProofVerifier` 是可替换的适配器，主要做结构和字段检查。
-- 尚未接入真正的 Groth16 配对密码学验证逻辑。
-
-主要校验规则：
-
-- `businessId` 必填。
-- `circuitId` 必填。
-- `proof` 或 `publicSignals` 至少有一个包含可验证内容。
-- `publicInputHash` 如果传入，必须是 64 位十六进制 SHA-256 字符串。
-
-### 3.4 多方门限签名验证
-
-```http
-POST /api/cross-verification/threshold-signature/verify
-Content-Type: application/json
-```
-
-请求示例：
-
-```json
-{
-  "businessId": "multi-party-confirm-001",
-  "message": "traffic-batch-001 approved",
+  "businessId": "traffic-threshold-valid",
+  "message": "traffic speed range approved",
   "threshold": 3,
   "totalNodes": 5,
   "participantIds": [1, 2, 4],
   "signatureBundle": {
-    "aggregateSignature": "0xabc123",
-    "valid": true
+    "scheme": "ECDSA-P256-SHA256",
+    "policyId": "traffic-consortium-dev-local",
+    "participantSignatures": {
+      "1": "<base64-ecdsa-signature>",
+      "2": "<base64-ecdsa-signature>",
+      "4": "<base64-ecdsa-signature>"
+    }
   },
   "writeLedger": false,
   "ledgerTargets": []
 }
 ```
 
-已完成能力：
+说明：
 
-- 校验门限参数、节点总数和参与方列表。
-- 计算 `messageHash`、`participantSetHash`、`signatureHash`。
-- 支持三种签名证据形态：
-  - `participantSignatures`
-  - `signatures`
-  - `aggregateSignature` 或 `signature`
-- 支持通过 `signatureBundle.valid=false` 模拟验证失败。
-- 生成统一验证记录，可通过记录接口查询。
-- 支持 `writeLedger=true` 时进入可信账本同步流程。
+- 策略文件位于 `config/threshold/{policyId}.json`。
+- 当前支持的签名方案为 `ECDSA-P256-SHA256`。
+- `participantIds` 必须和 `signatureBundle.participantSignatures` 的参与方集合一致。
+- `threshold`、`totalNodes` 必须和策略文件一致。
 
-当前边界：
+### 6.5 查询验证记录
 
-- 目前 `ThresholdSignatureVerifier` 是可替换的适配器，主要检查签名证据是否满足门限数量和字段形态。
-- 尚未接入真实的门限签名密码学验签库。
+列表查询：
 
-主要校验规则：
-
-- `businessId` 必填。
-- `message` 必填。
-- `threshold > 0`。
-- `totalNodes > 0`。
-- `threshold <= totalNodes`。
-- `participantIds` 必填，数量必须大于等于 `threshold`。
-- `participantIds` 不允许重复，每个 ID 必须在 `1..totalNodes` 范围内。
-- `signatureBundle` 必填且不能为空。
-
-### 3.5 验证记录查询
-
-```http
-GET /api/cross-verification/records
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8088/api/cross-verification/records?page=1&size=10"
 ```
 
-支持查询参数：
+支持参数：
 
-| 参数 | 说明 |
-| --- | --- |
-| `verifyType` | 可选，`MERKLE` / `ZKP` / `THRESHOLD_SIGNATURE` |
-| `businessId` | 可选，业务编号 |
-| `status` | 可选，`PASS` / `FAIL` / `ERROR` |
-| `page` | 可选，默认 `1` |
-| `size` | 可选，默认 `10`，最大按代码限制为 `100` |
+- `verifyType`：`MERKLE`、`ZKP`、`THRESHOLD_SIGNATURE`
+- `businessId`：业务 ID
+- `status`：`PASS`、`FAIL`、`ERROR`
+- `page`：页码，从 1 开始
+- `size`：每页数量，最大 100
 
 详情查询：
 
-```http
-GET /api/cross-verification/records/{recordId}
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8088/api/cross-verification/records/{recordId}"
 ```
 
-已完成能力：
+账本状态回写：
 
-- 三类验证都会写入统一记录服务。
-- 支持按类型、业务编号、状态分页筛选。
-- 详情接口返回列表字段、输入哈希、证明哈希、验证详情、账本同步状态和原始结果。
-- 记录不存在时返回 HTTP `404`。
+```powershell
+$body = @{
+  ledger = @{
+    enabled = $true
+    status = "SUCCESS"
+    chainPath = "traffic.bcos30"
+    resourcePath = "traffic.bcos30.VerificationStore"
+    txHash = "0xabc"
+    message = "已同步至可信账本"
+  }
+  chainVerification = @{
+    status = "SUCCESS"
+    chainPath = "traffic.fabric20"
+    resourcePath = "traffic.fabric20.VerificationStore"
+    txHash = "0xdef"
+    recordKey = "traffic-batch-001:MERKLE"
+  }
+} | ConvertTo-Json -Depth 10
 
-当前边界：
-
-- 当前记录存储是内存 `ConcurrentHashMap`，服务重启后记录会丢失。
-- 尚未接入数据库、文件存储或可信账本反查。
-
-## 4. 统一返回结构
-
-新版验证接口统一返回 `VerificationResult`：
-
-| 字段 | 说明 |
-| --- | --- |
-| `recordId` | 验证记录编号 |
-| `verifyType` | 验证类型 |
-| `verifyName` | 验证名称 |
-| `businessId` | 业务编号 |
-| `algorithm` | 算法名称 |
-| `status` | `PASS` / `FAIL` / `ERROR` |
-| `message` | 结果说明 |
-| `inputHash` | 输入摘要 |
-| `proofHash` | 证明或签名摘要 |
-| `resultHash` | 结果摘要，Merkle 场景下为根哈希 |
-| `ledger` | 可信账本同步结果 |
-| `detail` | 验证详情 |
-| `timestamp` | 记录时间戳 |
-
-账本状态字段 `ledger.status` 当前可能值：
-
-| 状态 | 说明 |
-| --- | --- |
-| `DISABLED` | 未请求账本同步 |
-| `PENDING` | 已请求同步，但适配器或链上状态未确认 |
-| `SUCCESS` | 同步成功 |
-| `FAILED` | 验证完成，但账本同步失败 |
-
-异常处理边界：
-
-- 业务校验异常通常会被服务层包装成 `status=ERROR` 的验证记录。
-- JSON 请求体无法解析等控制器层异常会返回 HTTP `400`。
-- 记录详情不存在会返回 HTTP `404`。
-
-## 5. 已完成的旧版兼容接口
-
-旧版路径用于兼容已有前端或历史联调脚本：
-
-```http
-GET  /api/verification/health
-POST /api/verification/merkle
-POST /api/verification/groth16
-POST /api/verification/threshold-signature
-POST /api/verification/full
+Invoke-RestMethod `
+  -Method Put `
+  -Uri "http://127.0.0.1:8088/api/cross-verification/records/{recordId}/ledger" `
+  -ContentType "application/json" `
+  -Body $body
 ```
 
-旧版接口的实现方式：
+## 7. 返回结构
 
-- `VerificationController` 将旧请求 DTO 映射到新版服务。
-- 旧接口仍返回 `com.traffic.wecross.api.VerificationRecord` 结构。
-- 保留历史字段名，例如：
-  - `verifyType=MERKLE_ROOT`
-  - `detail.merkleRoot`
-  - `detail.proofHash`
-  - `detail.piA`
-  - `detail.piB`
-  - `detail.piC`
-  - `detail.participants`
-  - `detail.signature`
-- 门限签名旧接口保留默认参数：
-  - `totalNodes` 缺省为 `10`
-  - `threshold` 缺省为 `5`
-  - `participantIds` 缺省为 `[1..threshold]`
-
-交接注意：
-
-- 旧接口是为了避免历史前端出现 `404` 或字段读取失败。
-- 在新版前端完全迁移并验证前，不建议删除 `/api/verification/*`。
-
-## 6. 可信账本同步现状
-
-三类新版验证请求均支持以下字段：
+三类验证接口统一返回 `VerificationResult`：
 
 ```json
 {
-  "writeLedger": true,
-  "ledgerTargets": [
-    "traffic.bcos30.VerificationStore",
-    "traffic.fabric20.VerificationStore"
-  ]
+  "recordId": "MERKLE-1782730000000-123456",
+  "verifyType": "MERKLE",
+  "verifyName": "数据完整性验证",
+  "businessId": "traffic-batch-001",
+  "algorithm": "Merkle-SHA256",
+  "status": "PASS",
+  "message": "数据完整性验证通过",
+  "inputHash": "...",
+  "proofHash": "...",
+  "resultHash": "...",
+  "ledger": {
+    "enabled": false,
+    "status": "DISABLED",
+    "chainPath": null,
+    "resourcePath": null,
+    "txHash": null,
+    "message": "未请求可信账本同步"
+  },
+  "detail": {},
+  "timestamp": 1782730000000
 }
 ```
 
-当前实现流程：
+状态值：
 
-1. 验证逻辑先生成 `VerificationResult`。
-2. `VerificationLedgerService` 根据结果构造 `LedgerRecordPayload`。
-3. `TrustedLedgerService` 尝试查找历史 `com.traffic.wecross.api.WeCrossGateway` Bean。
-4. 如果找到历史网关，则通过反射调用 `writeRecord(...)`。
-5. 如果当前运行环境没有历史网关，则返回 `PENDING`，不会改变验证本身的 `PASS` / `FAIL` 状态。
+- `PASS`：验证通过。
+- `FAIL`：验证未通过，例如根哈希不一致、证明被拒绝、有效签名数不足。
+- `ERROR`：请求参数不合法或内部执行异常。
 
-当前边界：
+账本状态：
 
-- 当前源码中没有完整历史 `WeCrossGateway` 实现。
-- 如果未接入真实网关，`writeLedger=true` 大概率只会得到 `PENDING`。
-- 账本同步失败不会覆盖验证结果，只体现在 `ledger.status` 和 `ledger.message`。
+- `DISABLED`：未请求写链。
+- `PENDING`：已请求写链，但状态暂未确认或适配未完全接入。
+- `SUCCESS`：写链成功。
+- `FAILED`：写链失败。
 
-## 7. 后续建议完善的接口和功能
+## 8. 构建与测试
 
-### 7.1 记录持久化
+编译：
 
-当前验证记录只保存在内存中，建议后续补充：
+```powershell
+mvn -q -DskipTests compile
+```
 
-- 数据库表结构或统一持久化仓储。
-- 按 `recordId`、`businessId`、`verifyType`、`status`、时间范围检索。
-- 服务重启后的记录恢复。
-- 与可信账本记录的双向校验或反查。
+运行测试：
 
-### 7.2 真实 Groth16 验证
+```powershell
+mvn -q test
+```
 
-当前 ZKP 接口只完成了接口契约、字段摘要和结构校验，建议后续补充：
+打包：
 
-- 真实 Groth16 验证器。
-- 验证密钥 `verifyingKeyId` 的加载和管理。
-- `proof` / `publicSignals` 的标准格式约束。
-- 失败原因的可解释化输出。
-- 对本地 JPBC 依赖或其他密码学库的打包验证。
+```powershell
+mvn -q -DskipTests package
+```
 
-### 7.3 真实门限签名验签
+构建产物：
 
-当前门限签名接口只检查证据形态和参与数量，建议后续补充：
+```text
+target/transportation_model-1.0-SNAPSHOT.jar
+```
 
-- 真实门限签名聚合验签。
-- 节点公钥、参与方身份、阈值策略的可信来源。
-- 签名消息规范，避免不同模块对 `message` 的序列化方式不一致。
-- 签名证据格式标准化。
+## 9. 常见问题
 
-### 7.4 可信账本写入适配
+### 9.1 `ZoKrates executable does not exist`
 
-当前账本写入是通过历史网关反射适配，建议后续补充：
+启动脚本没有找到 `zokrates.exe`。处理方式：
 
-- 明确当前项目使用的 WeCross 网关 Bean。
-- 固化写链接口，不再依赖反射猜测。
-- 补充链上合约方法和资源路径配置。
-- 写链成功后记录 `chainPath`、`resourcePath`、`txHash`。
-- 增加链上写入失败、鉴权失败、路由不可达等场景的可观测日志。
+```powershell
+.\scripts\start-backend.ps1 -ZokratesPath "E:\path\to\zokrates.exe" -RecordStorage memory
+```
 
-### 7.5 接口文档和联调样例
+或设置环境变量：
 
-建议补充：
+```powershell
+$env:ZOKRATES_EXECUTABLE="E:\path\to\zokrates.exe"
+```
 
-- OpenAPI / Swagger 文档。
-- 每个接口的成功、失败、参数错误样例。
-- 前端联调用的最小 curl 或 PowerShell 请求脚本。
-- 与新版前端 `/cross-verification` 模块对应的字段说明。
+### 9.2 ZKP 返回 `VERIFICATION_KEY_NOT_FOUND`
 
-### 7.6 中文编码与展示文本
+检查验证密钥是否存在：
 
-当前部分 Java 源码和 docs 中的中文提示文本在本地查看时存在乱码现象。建议后续统一检查：
+```text
+config/zkp/{verifyingKeyId}/verification.key
+```
 
-- 源码文件是否全部为 UTF-8。
-- PowerShell / IDE / Maven 编译使用的编码是否一致。
-- `verifyName`、`message`、`ledger.message` 等前端展示字段是否为正确中文。
+例如 `verifyingKeyId=traffic-speed-range-v1` 时，应存在：
 
-### 7.7 测试覆盖
+```text
+config/zkp/traffic-speed-range-v1/verification.key
+```
 
-建议补充：
+### 9.3 MySQL 模式启动失败
 
-- Merkle 正常通过、根哈希不匹配、空叶子、非法 `sampleIndex` 测试。
-- ZKP 缺少 `piA` / `piB` / `piC`、`valid=false`、非法 `publicInputHash` 测试。
-- 门限签名参与方不足、重复参与方、非法节点编号、签名证据为空测试。
-- 记录分页、筛选、详情不存在测试。
-- 可信账本 `DISABLED`、`PENDING`、`SUCCESS`、`FAILED` 状态测试。
-- 旧版 `/api/verification/*` 字段兼容性测试。
+常见原因：
 
-## 8. 重要代码位置
+- 数据库 `traffic_verification` 不存在。
+- 连接串、用户名或密码错误。
+- MySQL 服务未启动。
 
-| 模块 | 路径 |
-| --- | --- |
-| 启动类 | `src/main/java/com/traffic/wecross/crossverification/CrossVerificationApplication.java` |
-| 新版控制器 | `src/main/java/com/traffic/wecross/crossverification/controller` |
-| 新版 DTO | `src/main/java/com/traffic/wecross/crossverification/dto` |
-| 新版服务 | `src/main/java/com/traffic/wecross/crossverification/service` |
-| 记录模型 | `src/main/java/com/traffic/wecross/crossverification/record` |
-| 可信账本适配 | `src/main/java/com/traffic/wecross/crossverification/ledger` |
-| 工具类 | `src/main/java/com/traffic/wecross/crossverification/util` |
-| 旧版兼容接口 | `src/main/java/com/traffic/wecross/api` |
-| 配置文件 | `src/main/resources/application.properties`、`src/main/resources/application.toml` |
+可以先切回内存模式确认后端主体可运行：
 
-## 9. 交接建议
+```powershell
+.\scripts\start-backend.ps1 -ZokratesPath "E:\path\to\zokrates.exe" -RecordStorage memory
+```
 
-新成员接手时建议按以下顺序确认：
+### 9.4 验证通过但账本状态是 `PENDING`
 
-1. 先运行 `GET /api/cross-verification/health`，确认服务启动。
-2. 分别调用 Merkle、ZKP、门限签名三个新版接口，确认能生成记录。
-3. 调用 `/api/cross-verification/records` 和 `/records/{recordId}`，确认记录查询正常。
-4. 调用旧版 `/api/verification/*`，确认历史前端仍可兼容。
-5. 如果需要真实上链，优先补齐 WeCross 网关和合约资源路径。
-6. 如果要上线使用，优先补齐记录持久化、真实密码学验证和自动化测试。
+这通常表示后端没有找到可用的旧版 `WeCrossGateway`，或写链状态暂未确认。先确认请求中的 `writeLedger` 是否必须开启；如果只是验证算法功能，可使用：
 
+```json
+{
+  "writeLedger": false,
+  "ledgerTargets": []
+}
+```
+
+### 9.5 接口返回 200，但业务状态是 `ERROR`
+
+三类验证服务会把业务校验失败封装为统一结果返回。排查时不要只看 HTTP 状态码，还要看响应体中的：
+
+- `status`
+- `message`
+- `detail.reason`
+- `detail.errorCode`
+
+## 10. 新人上手建议
+
+建议按以下顺序熟悉项目：
+
+1. 启动内存模式，调用 `/api/cross-verification/health`。
+2. 调用 Merkle 验证，确认记录列表能看到新记录。
+3. 配置 MySQL，确认记录能落入 `verification_records`。
+4. 配置 ZoKrates，调用内置 `traffic-speed-range-v1` 证明样例。
+5. 调用 `threshold-valid-request.json`，理解策略文件和参与方签名关系。
+6. 需要链上联调时，再开启 `writeLedger=true` 并接入 WeCross 网关。
+
+补充文档：
+
+- `docs/cross-verification-api.md`
+- `docs/mysql-verification-records.md`
+- `docs/cross-verification-backend-skeleton.md`
+- `crypto/zokrates/traffic-speed-range-v1/README.md`

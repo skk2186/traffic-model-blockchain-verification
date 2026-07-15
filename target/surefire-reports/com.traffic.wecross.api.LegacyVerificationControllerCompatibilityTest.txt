@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.traffic.wecross.api.LegacyVerificationControllerCompatibilityTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.604 s - in com.traffic.wecross.api.LegacyVerificationControllerCompatibilityTest

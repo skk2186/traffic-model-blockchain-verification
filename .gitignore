@@ -1,0 +1,16 @@
+# ZoKrates generated runtime artifacts (may contain proving material and witnesses)
+/runtime/zkp/
+/runtime/zkp-temp/
+
+# Project-local Maven dependency cache used when the machine-wide repository is read-only
+/.m2/
+
+# Threshold signature private material must stay out of the repository
+/runtime/threshold/
+*.private.pem
+*.private.key
+
+# Local run logs and compiled scratch files
+backend-run*.log
+server*.log
+*.class

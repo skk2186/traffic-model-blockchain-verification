@@ -28,3 +28,13 @@
 2026-07-10 10:56:57.254  INFO 33076 --- [nio-8088-exec-2] c.t.w.c.s.VerificationRecordService      : verification record saved recordId=ZKP-1783652217254-579335 verifyType=ZKP businessId=traffic-proof-1783652214918 status=PASS ledgerStatus=DISABLED
 2026-07-10 10:56:57.255  INFO 33076 --- [nio-8088-exec-2] c.t.w.c.s.VerificationRecordService      : verification ledger status updated recordId=ZKP-1783652217254-579335 verifyType=ZKP businessId=traffic-proof-1783652214918 status=PASS ledgerStatus=DISABLED
 2026-07-10 10:57:03.069  INFO 33076 --- [nio-8088-exec-1] c.t.w.c.s.VerificationRecordService      : verification ledger status updated recordId=ZKP-1783652217254-579335 verifyType=ZKP businessId=traffic-proof-1783652214918 status=PASS ledgerStatus=SUCCESS
+2026-07-10 12:13:53.405  INFO 33076 --- [nio-8088-exec-7] c.t.w.c.s.VerificationRecordService      : verification record saved recordId=THRESHOLD_SIGNATURE-1783656833404-207436 verifyType=THRESHOLD_SIGNATURE businessId=traffic-signature-1783656822716 status=PASS ledgerStatus=DISABLED
+2026-07-10 12:13:53.408  INFO 33076 --- [nio-8088-exec-7] c.t.w.c.s.VerificationRecordService      : verification ledger status updated recordId=THRESHOLD_SIGNATURE-1783656833404-207436 verifyType=THRESHOLD_SIGNATURE businessId=traffic-signature-1783656822716 status=PASS ledgerStatus=DISABLED
+2026-07-10 12:14:00.443  INFO 33076 --- [io-8088-exec-10] c.t.w.c.s.VerificationRecordService      : verification ledger status updated recordId=THRESHOLD_SIGNATURE-1783656833404-207436 verifyType=THRESHOLD_SIGNATURE businessId=traffic-signature-1783656822716 status=PASS ledgerStatus=SUCCESS
+[ERROR] Failed to execute goal org.springframework.boot:spring-boot-maven-plugin:2.7.18:run (default-cli) on project transportation_model: Application finished with exit code: -1 -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException

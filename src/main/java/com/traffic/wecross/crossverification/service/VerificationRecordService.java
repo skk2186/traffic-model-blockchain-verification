@@ -3,6 +3,7 @@ package com.traffic.wecross.crossverification.service;
 import com.traffic.wecross.crossverification.dto.PageResult;
 import com.traffic.wecross.crossverification.dto.VerificationResult;
 import com.traffic.wecross.crossverification.ledger.LedgerSyncResult;
+import com.traffic.wecross.crossverification.record.MysqlVerificationRecordRepository;
 import com.traffic.wecross.crossverification.record.VerificationRecord;
 import com.traffic.wecross.crossverification.record.VerificationRecordDetail;
 import com.traffic.wecross.crossverification.record.VerifyStatus;
@@ -12,6 +13,8 @@ import com.traffic.wecross.crossverification.util.JsonUtils;
 import com.traffic.wecross.crossverification.util.VerifyIdGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -27,6 +30,16 @@ public class VerificationRecordService {
     // Temporary development-stage store. Replace with database or trusted ledger query adapter later.
     private final Map<String, VerificationRecord> records = new ConcurrentHashMap<>();
     private final Map<String, VerificationRecordDetail> recordDetails = new ConcurrentHashMap<>();
+    private final MysqlVerificationRecordRepository mysqlRepository;
+
+    public VerificationRecordService() {
+        this.mysqlRepository = null;
+    }
+
+    @Autowired
+    public VerificationRecordService(ObjectProvider<MysqlVerificationRecordRepository> mysqlRepositoryProvider) {
+        this.mysqlRepository = mysqlRepositoryProvider.getIfAvailable();
+    }
 
     public VerificationResult createResult(
             VerifyType verifyType,
@@ -76,9 +89,9 @@ public class VerificationRecordService {
         record.txHash = ledger == null ? null : ledger.txHash;
         record.createdAt = now;
         record.resultHash = resultHash == null ? buildResultHash(record, inputHash, proofHash, detail) : resultHash;
-        records.put(record.recordId, record);
         VerificationResult result = toResult(record, message, inputHash, proofHash, ledger, detail);
-        recordDetails.put(record.recordId, toDetail(record, inputHash, proofHash, detail, ledger, result));
+        VerificationRecordDetail recordDetail = toDetail(record, inputHash, proofHash, detail, ledger, result);
+        saveRecord(record, recordDetail);
         LOGGER.info(
                 "verification record saved recordId={} verifyType={} businessId={} status={} ledgerStatus={}",
                 record.recordId,
@@ -95,6 +108,9 @@ public class VerificationRecordService {
             VerifyStatus status,
             Integer page,
             Integer size) {
+        if (mysqlRepository != null) {
+            return mysqlRepository.listRecords(verifyType, businessId, status, page, size);
+        }
         int safePage = page == null || page < 1 ? 1 : page;
         int safeSize = size == null || size < 1 ? 10 : Math.min(size, 100);
         List<VerificationRecord> filtered = new ArrayList<>();
@@ -117,6 +133,9 @@ public class VerificationRecordService {
     }
 
     public VerificationRecordDetail getRecordDetail(String recordId) {
+        if (mysqlRepository != null) {
+            return mysqlRepository.getRecordDetail(recordId);
+        }
         return recordDetails.get(recordId);
     }
 
@@ -128,10 +147,11 @@ public class VerificationRecordService {
             String recordId,
             LedgerSyncResult ledger,
             Map<String, Object> chainVerification) {
-        VerificationRecord record = records.get(recordId);
-        if (record == null || ledger == null) {
+        VerificationRecordDetail detail = getRecordDetail(recordId);
+        if (detail == null || ledger == null) {
             return;
         }
+        VerificationRecord record = detail;
         record.ledgerStatus = ledger.status;
         record.chainPath = ledger.chainPath;
         record.resourcePath = ledger.resourcePath;
@@ -147,20 +167,18 @@ public class VerificationRecordService {
                 record.businessId,
                 record.status,
                 record.ledgerStatus);
-        VerificationRecordDetail detail = recordDetails.get(recordId);
-        if (detail != null) {
-            copyListFields(record, detail);
-            detail.ledger = ledger;
-            if (chainVerification != null && detail.detail != null) {
-                detail.detail.put("chainVerification", chainVerification);
-            }
-            if (detail.rawResult != null) {
-                detail.rawResult.ledger = ledger;
-                if (chainVerification != null && detail.rawResult.detail != null) {
-                    detail.rawResult.detail.put("chainVerification", chainVerification);
-                }
+        copyListFields(record, detail);
+        detail.ledger = ledger;
+        if (chainVerification != null && detail.detail != null) {
+            detail.detail.put("chainVerification", chainVerification);
+        }
+        if (detail.rawResult != null) {
+            detail.rawResult.ledger = ledger;
+            if (chainVerification != null && detail.rawResult.detail != null) {
+                detail.rawResult.detail.put("chainVerification", chainVerification);
             }
         }
+        saveRecord(record, detail);
     }
 
     private VerificationResult toResult(
@@ -219,6 +237,15 @@ public class VerificationRecordService {
         target.crossChainStatus = source.crossChainStatus;
         target.crossChainTxHash = source.crossChainTxHash;
         target.createdAt = source.createdAt;
+    }
+
+    private void saveRecord(VerificationRecord record, VerificationRecordDetail detail) {
+        if (mysqlRepository != null) {
+            mysqlRepository.save(detail);
+            return;
+        }
+        records.put(record.recordId, record);
+        recordDetails.put(record.recordId, detail);
     }
 
     private String stringValue(Object value) {

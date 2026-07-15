@@ -1,0 +1,18 @@
+{
+  "businessId":"traffic-threshold-forged",
+  "message":"traffic speed range approved",
+  "threshold":3,
+  "totalNodes":5,
+  "participantIds":[1,2,3],
+  "signatureBundle":{
+    "scheme":"ECDSA-P256-SHA256",
+    "policyId":"traffic-consortium-dev-local",
+    "participantSignatures":{
+      "1":"MEYCIQDZGjJuxQg1kERy7hsjTKrkGhUYh6MvFJRsq3+mOuXKRgIhAIPgR66H0zawNFKmKWAtnrwrkBJDWwqFz0kyqsX1zfR2",
+      "2":"MEYCIQCcHBTaElgF9ts3Npp5TJ3wNTrWFGbubUDBB5+etQe/sgIhAMhSe37a+JI34jx3u4l7w7cDHR66wcem0vxUFKrApc0w",
+      "3":"MEYCIQCbqjnAipkd6KMjRaYgBpDEB8boO2sVh5uur8DxtotxhgIhAJNvXUkC5a6T7rTAgB1d3IqhEgIaI31Lh0bXEl9OqgPl"
+    }
+  },
+  "writeLedger":false,
+  "ledgerTargets":[]
+}

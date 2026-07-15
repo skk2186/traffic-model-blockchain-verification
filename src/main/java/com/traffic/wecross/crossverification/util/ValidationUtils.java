@@ -46,9 +46,6 @@ public final class ValidationUtils {
             throw new IllegalArgumentException("threshold must be less than or equal to totalNodes");
         }
         requireNotEmpty(participantIds, "participantIds");
-        if (participantIds.size() < threshold) {
-            throw new IllegalArgumentException("participantIds size must be greater than or equal to threshold");
-        }
         Set<Integer> seen = new HashSet<>();
         for (Integer participantId : participantIds) {
             if (participantId == null || participantId < 1 || participantId > totalNodes) {

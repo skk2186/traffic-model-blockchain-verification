@@ -1,0 +1,17 @@
+com\traffic\wecross\crossverification\config\ZkpVerificationPropertiesTest.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest$3.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest.class
+com\traffic\wecross\crossverification\zkp\ZokratesGroth16IntegrationTest.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest$6.class
+com\traffic\wecross\crossverification\zkp\ZokratesGroth16IntegrationTest$3.class
+com\traffic\wecross\crossverification\service\Groth16ProofVerifierTest$2.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest$1.class
+com\traffic\wecross\crossverification\zkp\VerifyingKeyResolverTest.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest$2.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest$4.class
+com\traffic\wecross\crossverification\zkp\ZokratesProofNormalizerTest$5.class
+com\traffic\wecross\crossverification\zkp\ZokratesGroth16IntegrationTest$1.class
+com\traffic\wecross\crossverification\zkp\ZokratesGroth16IntegrationTest$2.class
+com\traffic\wecross\crossverification\service\Groth16ProofVerifierTest$1.class
+com\traffic\wecross\crossverification\service\Groth16ProofVerifierTest.class
+com\traffic\wecross\crossverification\zkp\ZokratesProcessRunnerTest.class
