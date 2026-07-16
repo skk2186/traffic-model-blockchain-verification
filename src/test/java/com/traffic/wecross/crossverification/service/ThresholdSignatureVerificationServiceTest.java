@@ -9,10 +9,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -32,21 +32,25 @@ class ThresholdSignatureVerificationServiceTest {
         ledgerService = mock(VerificationLedgerService.class);
         verifier = mock(ThresholdSignatureVerifier.class);
         service = new ThresholdSignatureVerificationService(recordService, ledgerService, verifier);
-        when(ledgerService.syncIfRequested(any(), any(), any())).thenReturn(LedgerSyncResult.disabled());
+        when(ledgerService.syncIfRequested(any(), any(), any()))
+                .thenReturn(LedgerSyncResult.disabled());
     }
 
     @Test
-    void keepsRecordLedgerFlowAndRealEcdsaDetailForPass() {
-        Map<String, Boolean> participantResults = participantResults(true, true, true);
-        when(verifier.verify(eq("traffic message"), eq(3), eq(5), eq(Arrays.asList(1, 2, 4)), any()))
+    void keepsRecordAndLedgerFlowForValidFrostSignature() {
+        when(verifier.verify(
+                eq("traffic-threshold-test"),
+                eq("traffic message"),
+                eq(3),
+                eq(5),
+                eq(Arrays.asList(1, 2, 4)),
+                any()))
                 .thenReturn(ThresholdSignatureVerifier.VerificationDecision.pass(
-                        "ECDSA-P256-SHA256",
+                        "FROST-ED25519-SHA512",
                         "traffic-consortium-v1",
                         3,
-                        3,
                         5,
-                        Arrays.asList(1, 2, 4),
-                        participantResults));
+                        Arrays.asList(1, 2, 4)));
 
         ThresholdSignatureVerifyRequest request = request();
         request.writeLedger = true;
@@ -54,94 +58,84 @@ class ThresholdSignatureVerificationServiceTest {
 
         assertEquals("PASS", result.status);
         assertEquals("THRESHOLD_SIGNATURE", result.verifyType);
-        assertEquals("Threshold-Signature", result.algorithm);
+        assertEquals("FROST-Ed25519-SHA512", result.algorithm);
         assertNotNull(result.recordId);
         assertNotNull(result.inputHash);
         assertNotNull(result.proofHash);
         assertEquals("REAL", result.detail.get("verifierMode"));
-        assertEquals("JAVA_SIGNATURE", result.detail.get("verifierEngine"));
-        assertEquals("ECDSA-P256-SHA256", result.detail.get("scheme"));
+        assertEquals(ThresholdSignatureVerifier.ENGINE, result.detail.get("verifierEngine"));
+        assertEquals("FROST-ED25519-SHA512", result.detail.get("scheme"));
         assertEquals("traffic-consortium-v1", result.detail.get("policyId"));
+        assertEquals(Boolean.TRUE, result.detail.get("aggregateSignatureVerified"));
         assertEquals(3, result.detail.get("validSignatureCount"));
-        assertEquals(participantResults, result.detail.get("participantResults"));
+        assertNotNull(result.detail.get("canonicalPayloadHash"));
         assertNotNull(recordService.getRecordDetail(result.recordId));
         verify(ledgerService).syncIfRequested(any(), eq(Boolean.TRUE), any());
     }
 
     @Test
-    void mapsBelowThresholdDecisionToFailWithoutBreakingHashesOrRecord() {
-        Map<String, Boolean> participantResults = participantResults(true, false, true);
-        when(verifier.verify(eq("traffic message"), eq(3), eq(5), eq(Arrays.asList(1, 2, 4)), any()))
+    void mapsInvalidAggregateSignatureDecisionToFail() {
+        when(verifier.verify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(ThresholdSignatureVerifier.VerificationDecision.fail(
-                        "ECDSA-P256-SHA256",
+                        "FROST-ED25519-SHA512",
                         "traffic-consortium-v1",
-                        2,
                         3,
                         5,
                         Arrays.asList(1, 2, 4),
-                        participantResults,
-                        "valid signature count is less than threshold"));
+                        "FROST aggregate signature verification failed"));
 
         VerificationResult result = service.verify(request());
 
         assertEquals("FAIL", result.status);
-        assertEquals("valid signature count is less than threshold", result.detail.get("reason"));
-        assertEquals(2, result.detail.get("validSignatureCount"));
-        assertEquals(participantResults, result.detail.get("participantResults"));
+        assertEquals(
+                "FROST aggregate signature verification failed",
+                result.detail.get("reason"));
+        assertEquals(Boolean.FALSE, result.detail.get("aggregateSignatureVerified"));
+        assertEquals(0, result.detail.get("validSignatureCount"));
         assertNotNull(recordService.getRecordDetail(result.recordId));
         verify(ledgerService).syncIfRequested(any(), eq(null), any());
     }
 
     @Test
-    void keepsSignatureAndParticipantSetHashesStableAcrossInputOrder() {
-        when(verifier.verify(eq("traffic message"), eq(3), eq(5), any(), any()))
-                .thenReturn(ThresholdSignatureVerifier.VerificationDecision.pass(
-                        "ECDSA-P256-SHA256",
+    void hashesAreStableAcrossParticipantInputOrder() {
+        when(verifier.verify(any(), any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> ThresholdSignatureVerifier.VerificationDecision.pass(
+                        "FROST-ED25519-SHA512",
                         "traffic-consortium-v1",
                         3,
-                        3,
                         5,
-                        Arrays.asList(1, 2, 4),
-                        participantResults(true, true, true)));
+                        invocation.getArgument(4)));
 
         ThresholdSignatureVerifyRequest first = request();
         ThresholdSignatureVerifyRequest second = request();
         second.participantIds = Arrays.asList(4, 1, 2);
-        Map<String, Object> reorderedSignatures = new LinkedHashMap<>();
-        reorderedSignatures.put("4", "sig-4");
-        reorderedSignatures.put("1", "sig-1");
-        reorderedSignatures.put("2", "sig-2");
-        second.signatureBundle.put("participantSignatures", reorderedSignatures);
 
         VerificationResult firstResult = service.verify(first);
         VerificationResult secondResult = service.verify(second);
 
         assertEquals(firstResult.proofHash, secondResult.proofHash);
-        assertEquals(firstResult.detail.get("signatureHash"), secondResult.detail.get("signatureHash"));
-        assertEquals(firstResult.detail.get("participantSetHash"), secondResult.detail.get("participantSetHash"));
+        assertEquals(
+                firstResult.detail.get("participantSetHash"),
+                secondResult.detail.get("participantSetHash"));
+        assertEquals(
+                firstResult.detail.get("canonicalPayloadHash"),
+                secondResult.detail.get("canonicalPayloadHash"));
     }
 
     @Test
-    void duplicateParticipantsStillReturnErrorBeforeHashNormalization() {
-        ThresholdSignatureVerifyRequest request = request();
-        request.participantIds = Arrays.asList(1, 1, 2);
+    void rejectsTooFewDuplicateAndOutOfRangeParticipantsBeforeVerifier() {
+        ThresholdSignatureVerifyRequest tooFew = request();
+        tooFew.participantIds = Arrays.asList(1, 2);
+        assertEquals("ERROR", service.verify(tooFew).status);
 
-        VerificationResult result = service.verify(request);
+        ThresholdSignatureVerifyRequest duplicate = request();
+        duplicate.participantIds = Arrays.asList(1, 1, 2);
+        assertEquals("ERROR", service.verify(duplicate).status);
 
-        assertEquals("ERROR", result.status);
-        assertEquals("THRESHOLD_SIGNATURE_VERIFY_ERROR", result.detail.get("errorCode"));
-        verifyNoInteractions(verifier);
-    }
+        ThresholdSignatureVerifyRequest outOfRange = request();
+        outOfRange.participantIds = Arrays.asList(1, 2, 6);
+        assertEquals("ERROR", service.verify(outOfRange).status);
 
-    @Test
-    void outOfRangeParticipantReturnsErrorBeforeVerifier() {
-        ThresholdSignatureVerifyRequest request = request();
-        request.participantIds = Arrays.asList(1, 2, 6);
-
-        VerificationResult result = service.verify(request);
-
-        assertEquals("ERROR", result.status);
-        assertEquals("THRESHOLD_SIGNATURE_VERIFY_ERROR", result.detail.get("errorCode"));
         verifyNoInteractions(verifier);
     }
 
@@ -154,6 +148,7 @@ class ThresholdSignatureVerificationServiceTest {
 
         assertEquals("ERROR", result.status);
         assertEquals("THRESHOLD_SIGNATURE_VERIFY_ERROR", result.detail.get("errorCode"));
+        assertTrue(String.valueOf(result.message).contains("signatureBundle"));
         verifyNoInteractions(verifier);
     }
 
@@ -165,21 +160,9 @@ class ThresholdSignatureVerificationServiceTest {
         request.totalNodes = 5;
         request.participantIds = Arrays.asList(1, 2, 4);
         request.signatureBundle = new LinkedHashMap<>();
-        request.signatureBundle.put("scheme", "ECDSA-P256-SHA256");
+        request.signatureBundle.put("scheme", "FROST-ED25519-SHA512");
         request.signatureBundle.put("policyId", "traffic-consortium-v1");
-        Map<String, Object> signatures = new LinkedHashMap<>();
-        signatures.put("1", "sig-1");
-        signatures.put("2", "sig-2");
-        signatures.put("4", "sig-4");
-        request.signatureBundle.put("participantSignatures", signatures);
+        request.signatureBundle.put("aggregateSignature", "test-signature");
         return request;
-    }
-
-    private Map<String, Boolean> participantResults(boolean one, boolean two, boolean four) {
-        Map<String, Boolean> results = new LinkedHashMap<>();
-        results.put("1", one);
-        results.put("2", two);
-        results.put("4", four);
-        return results;
     }
 }

@@ -1,5 +1,5 @@
 {
-  "policyId": "traffic-consortium-dev-local",
+  "policyId": "traffic-consortium-frost-v1",
   "scheme": "FROST-ED25519-SHA512",
   "threshold": 3,
   "totalNodes": 5,

@@ -6,10 +6,11 @@ import com.traffic.wecross.crossverification.ledger.LedgerSyncResult;
 import com.traffic.wecross.crossverification.ledger.VerificationLedgerService;
 import com.traffic.wecross.crossverification.record.VerifyStatus;
 import com.traffic.wecross.crossverification.record.VerifyType;
+import com.traffic.wecross.crossverification.threshold.ThresholdSignatureMessage;
+import com.traffic.wecross.crossverification.util.ErrorResultFactory;
 import com.traffic.wecross.crossverification.util.HashUtils;
 import com.traffic.wecross.crossverification.util.JsonUtils;
 import com.traffic.wecross.crossverification.util.ValidationUtils;
-import com.traffic.wecross.crossverification.util.ErrorResultFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -17,7 +18,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 @Service
 public class ThresholdSignatureVerificationService {
@@ -46,10 +46,13 @@ public class ThresholdSignatureVerificationService {
     private VerificationResult verifyInternal(ThresholdSignatureVerifyRequest request) {
         String messageHash = HashUtils.sha256Hex(request.message);
         String participantSetHash = participantSetHash(request.participantIds);
-        String signatureHash = HashUtils.sha256Hex(JsonUtils.toJson(canonicalSignatureBundle(request.signatureBundle)));
+        String signatureHash =
+                HashUtils.sha256Hex(JsonUtils.toJson(canonicalSignatureBundle(request.signatureBundle)));
+        String canonicalPayloadHash = canonicalPayloadHash(request);
 
         ThresholdSignatureVerifier.VerificationDecision decision =
                 thresholdSignatureVerifier.verify(
+                        request.businessId,
                         request.message,
                         request.threshold,
                         request.totalNodes,
@@ -61,25 +64,28 @@ public class ThresholdSignatureVerificationService {
         detail.put("verifierEngine", decision.getVerifierEngine());
         detail.put("scheme", decision.getScheme());
         detail.put("policyId", decision.getPolicyId());
+        detail.put("aggregateSignatureVerified", decision.isAggregateSignatureVerified());
         detail.put("validSignatureCount", decision.getValidSignatureCount());
         detail.put("threshold", decision.getThreshold());
         detail.put("totalNodes", decision.getTotalNodes());
         detail.put("participantCount", request.participantIds.size());
         detail.put("participantIds", decision.getParticipantIds());
-        detail.put("participantResults", decision.getParticipantResults());
         detail.put("messageHash", messageHash);
         detail.put("signatureHash", signatureHash);
         detail.put("participantSetHash", participantSetHash);
+        detail.put("canonicalPayloadHash", canonicalPayloadHash);
         if (decision.getReason() != null) {
             detail.put("reason", decision.getReason());
         }
 
         VerifyStatus status = decision.isPassed() ? VerifyStatus.PASS : VerifyStatus.FAIL;
-        String message = decision.isPassed() ? "多方签名验证通过" : "多方签名验证未通过";
+        String message = decision.isPassed()
+                ? "FROST threshold signature verified"
+                : "FROST threshold signature verification failed";
         VerificationResult result = recordService.createResult(
                 VerifyType.THRESHOLD_SIGNATURE,
                 request.businessId,
-                "Threshold-Signature",
+                "FROST-Ed25519-SHA512",
                 status,
                 message,
                 messageHash,
@@ -96,7 +102,12 @@ public class ThresholdSignatureVerificationService {
         }
         ValidationUtils.requireText(request.businessId, "businessId");
         ValidationUtils.requireText(request.message, "message");
-        ValidationUtils.validateThresholdParticipants(request.threshold, request.totalNodes, request.participantIds);
+        ValidationUtils.validateThresholdParticipants(
+                request.threshold, request.totalNodes, request.participantIds);
+        if (request.participantIds.size() < request.threshold) {
+            throw new IllegalArgumentException(
+                    "participantIds count must be greater than or equal to threshold");
+        }
         if (request.signatureBundle == null || request.signatureBundle.isEmpty()) {
             throw new IllegalArgumentException("signatureBundle must not be empty");
         }
@@ -112,42 +123,46 @@ public class ThresholdSignatureVerificationService {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("scheme", signatureBundle.get("scheme"));
         canonical.put("policyId", signatureBundle.get("policyId"));
-        Object participantSignatures = signatureBundle.get("participantSignatures");
-        if (participantSignatures instanceof Map) {
-            Map<Integer, Object> sorted = new TreeMap<>();
-            for (Map.Entry<?, ?> entry : ((Map<?, ?>) participantSignatures).entrySet()) {
-                Integer participantId = Integer.valueOf(String.valueOf(entry.getKey()));
-                sorted.put(participantId, entry.getValue());
-            }
-            Map<String, Object> normalized = new LinkedHashMap<>();
-            for (Map.Entry<Integer, Object> entry : sorted.entrySet()) {
-                normalized.put(String.valueOf(entry.getKey()), entry.getValue());
-            }
-            canonical.put("participantSignatures", normalized);
-        } else {
-            canonical.put("participantSignatures", participantSignatures);
-        }
+        canonical.put("aggregateSignature", signatureBundle.get("aggregateSignature"));
         return canonical;
     }
 
-    private VerificationResult buildErrorResult(ThresholdSignatureVerifyRequest request, String message) {
-        String errorMessage = message == null ? "多方签名验证异常" : message;
-        Map<String, Object> detail = ErrorResultFactory.detail("THRESHOLD_SIGNATURE_VERIFY_ERROR", errorMessage);
-        LedgerSyncResult ledger = LedgerSyncResult.disabled();
+    private String canonicalPayloadHash(ThresholdSignatureVerifyRequest request) {
+        Object policyIdValue = request.signatureBundle.get("policyId");
+        String policyId = policyIdValue == null ? "" : String.valueOf(policyIdValue).trim();
+        byte[] payload = ThresholdSignatureMessage.encode(
+                policyId,
+                request.businessId,
+                request.threshold,
+                request.totalNodes,
+                request.participantIds,
+                request.message);
+        return HashUtils.hex(HashUtils.sha256(payload));
+    }
+
+    private VerificationResult buildErrorResult(
+            ThresholdSignatureVerifyRequest request, String message) {
+        String errorMessage = message == null
+                ? "FROST threshold signature verification error"
+                : message;
+        Map<String, Object> detail =
+                ErrorResultFactory.detail("THRESHOLD_SIGNATURE_VERIFY_ERROR", errorMessage);
         return recordService.createResult(
                 VerifyType.THRESHOLD_SIGNATURE,
                 request == null ? null : request.businessId,
-                "Threshold-Signature",
+                "FROST-Ed25519-SHA512",
                 VerifyStatus.ERROR,
                 errorMessage,
                 null,
                 null,
-                ledger,
+                LedgerSyncResult.disabled(),
                 detail);
     }
 
-    private void syncLedger(VerificationResult result, Boolean writeLedger, List<String> ledgerTargets) {
-        LedgerSyncResult ledger = verificationLedgerService.syncIfRequested(result, writeLedger, ledgerTargets);
+    private void syncLedger(
+            VerificationResult result, Boolean writeLedger, List<String> ledgerTargets) {
+        LedgerSyncResult ledger =
+                verificationLedgerService.syncIfRequested(result, writeLedger, ledgerTargets);
         result.ledger = ledger;
         recordService.updateLedger(result.recordId, ledger);
     }

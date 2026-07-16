@@ -9,10 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static com.traffic.wecross.crossverification.testsupport.ThresholdSignatureTestFixtures.AGGREGATE_SIGNATURE;
+import static com.traffic.wecross.crossverification.testsupport.ThresholdSignatureTestFixtures.BUSINESS_ID;
+import static com.traffic.wecross.crossverification.testsupport.ThresholdSignatureTestFixtures.GROUP_PUBLIC_KEY;
 import static com.traffic.wecross.crossverification.testsupport.ThresholdSignatureTestFixtures.MESSAGE;
 import static com.traffic.wecross.crossverification.testsupport.ThresholdSignatureTestFixtures.POLICY_ID;
 import static com.traffic.wecross.crossverification.testsupport.ThresholdSignatureTestFixtures.SCHEME;
@@ -38,172 +40,226 @@ class ThresholdSignatureVerifierTest {
     }
 
     @Test
-    void ts001PassesWhenThreeOfFiveRealSignaturesAreValid() throws Exception {
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 4), fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2, 4)));
+    void passesRealThreeOfFiveFrostAggregateSignature() {
+        ThresholdSignatureVerifier.VerificationDecision decision = verifyValid();
 
         assertTrue(decision.isPassed());
+        assertTrue(decision.isAggregateSignatureVerified());
         assertEquals("REAL", decision.getVerifierMode());
-        assertEquals("JAVA_SIGNATURE", decision.getVerifierEngine());
+        assertEquals(ThresholdSignatureVerifier.ENGINE, decision.getVerifierEngine());
         assertEquals(SCHEME, decision.getScheme());
         assertEquals(POLICY_ID, decision.getPolicyId());
         assertEquals(3, decision.getValidSignatureCount());
-        assertEquals(Boolean.TRUE, decision.getParticipantResults().get("1"));
-        assertEquals(Boolean.TRUE, decision.getParticipantResults().get("2"));
-        assertEquals(Boolean.TRUE, decision.getParticipantResults().get("4"));
     }
 
     @Test
-    void ts002FailsWhenOnlyTwoOfFiveRealSignaturesAreProvided() throws Exception {
+    void acceptsDifferentRequestOrderBecauseParticipantSetIsCanonicalized() {
         ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2), fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2)));
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(4, 1, 2),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE));
+
+        assertTrue(decision.isPassed());
+        assertEquals(fixtures.ids(1, 2, 4), decision.getParticipantIds());
+    }
+
+    @Test
+    void rejectsParticipantCountBelowThreshold() {
+        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE));
 
         assertFalse(decision.isPassed());
-        assertEquals(2, decision.getValidSignatureCount());
-        assertEquals("valid signature count is less than threshold", decision.getReason());
+        assertEquals(
+                "participantIds count must be greater than or equal to threshold",
+                decision.getReason());
     }
 
     @Test
-    void ts003FailsWhenOneOfThreeSignaturesIsForged() throws Exception {
-        Map<String, Object> signatures = fixtures.signatures(MESSAGE, 1, 3);
-        signatures.put("2", fixtures.sign("forged-message", fixtures.getKeyPairs().get(2)));
-
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 3), fixtures.bundle(signatures));
-
-        assertFalse(decision.isPassed());
-        assertEquals(2, decision.getValidSignatureCount());
-        assertEquals(Boolean.FALSE, decision.getParticipantResults().get("2"));
-    }
-
-    @Test
-    void ts004RejectsDuplicateParticipantIds() throws Exception {
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 1, 2), fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2)));
-
-        assertFalse(decision.isPassed());
-        assertEquals("participantIds must not contain duplicate values", decision.getReason());
-    }
-
-    @Test
-    void ts005RejectsParticipantIdOutsideTotalNodes() throws Exception {
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 6), fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2)));
-
-        assertFalse(decision.isPassed());
-        assertEquals("participantId must be between 1 and totalNodes", decision.getReason());
-    }
-
-    @Test
-    void ts006FailsWhenSignatureIsCheckedAgainstWrongPublicKey() throws Exception {
-        Map<String, Object> signatures = fixtures.signatures(MESSAGE, 1, 3);
-        signatures.put("2", fixtures.sign(MESSAGE, fixtures.getKeyPairs().get(1)));
-
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 3), fixtures.bundle(signatures));
-
-        assertFalse(decision.isPassed());
-        assertEquals(Boolean.FALSE, decision.getParticipantResults().get("2"));
-        assertEquals(2, decision.getValidSignatureCount());
-    }
-
-    @Test
-    void ts007FailsWhenMessageIsTamperedAfterSigning() throws Exception {
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
+    void rejectsTamperedMessageBusinessIdAndParticipantSet() {
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
                 "tampered " + MESSAGE,
                 3,
                 5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE)).isPassed());
+
+        assertFalse(verifier.verify(
+                "tampered-business",
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE)).isPassed());
+
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
                 fixtures.ids(1, 2, 3),
-                fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2, 3)));
-
-        assertFalse(decision.isPassed());
-        assertEquals(0, decision.getValidSignatureCount());
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE)).isPassed());
     }
 
     @Test
-    void ts008RejectsEmptySignatureBundle() {
-        ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 3), new LinkedHashMap<>());
-
-        assertFalse(decision.isPassed());
-        assertEquals("signatureBundle must not be empty", decision.getReason());
+    void rejectsDuplicateAndOutOfRangeParticipantIds() {
+        assertEquals(
+                "participantIds must not contain duplicate values",
+                verifier.verify(
+                        BUSINESS_ID,
+                        MESSAGE,
+                        3,
+                        5,
+                        fixtures.ids(1, 1, 2),
+                        fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE))
+                        .getReason());
+        assertEquals(
+                "participantId must be between 1 and totalNodes",
+                verifier.verify(
+                        BUSINESS_ID,
+                        MESSAGE,
+                        3,
+                        5,
+                        fixtures.ids(1, 2, 6),
+                        fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE))
+                        .getReason());
     }
 
     @Test
-    void rejectsInvalidBase64AndInvalidDerSignaturesAsFailedVerification() throws Exception {
-        Map<String, Object> invalidBase64 = fixtures.signatures(MESSAGE, 1, 2);
-        invalidBase64.put("3", "not-base64!");
-        assertEquals(2, verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 3), fixtures.bundle(invalidBase64)).getValidSignatureCount());
+    void rejectsLegacyIndependentEcdsaSignatureBundle() {
+        Map<String, Object> legacy = new LinkedHashMap<>();
+        legacy.put("scheme", "ECDSA-P256-SHA256");
+        legacy.put("policyId", "traffic-consortium-v1");
+        legacy.put("participantSignatures", new LinkedHashMap<String, Object>());
 
-        Map<String, Object> invalidDer = fixtures.signatures(MESSAGE, 1, 2);
-        invalidDer.put("3", Base64.getEncoder().encodeToString("not-der".getBytes("UTF-8")));
         ThresholdSignatureVerifier.VerificationDecision decision = verifier.verify(
-                MESSAGE, 3, 5, fixtures.ids(1, 2, 3), fixtures.bundle(invalidDer));
+                BUSINESS_ID, MESSAGE, 3, 5, fixtures.ids(1, 2, 4), legacy);
+
         assertFalse(decision.isPassed());
-        assertEquals(Boolean.FALSE, decision.getParticipantResults().get("3"));
+        assertTrue(decision.getReason().contains("signatureBundle"));
+    }
+
+    @Test
+    void rejectsInvalidBase64AndWrongLengthAggregateSignatures() {
+        assertEquals(
+                "aggregateSignature must be valid Base64",
+                verifier.verify(
+                        BUSINESS_ID,
+                        MESSAGE,
+                        3,
+                        5,
+                        fixtures.ids(1, 2, 4),
+                        fixtures.bundle(POLICY_ID, SCHEME, "not-base64!"))
+                        .getReason());
+        assertEquals(
+                "aggregateSignature must decode to 64 bytes",
+                verifier.verify(
+                        BUSINESS_ID,
+                        MESSAGE,
+                        3,
+                        5,
+                        fixtures.ids(1, 2, 4),
+                        fixtures.bundle(POLICY_ID, SCHEME, "YQ=="))
+                        .getReason());
     }
 
     @Test
     void rejectsMissingMalformedAndMismatchedPolicies() throws Exception {
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3),
-                fixtures.bundle("missing-policy", SCHEME, fixtures.signatures(MESSAGE, 1, 2, 3))).isPassed());
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle("missing-policy", SCHEME, AGGREGATE_SIGNATURE)).isPassed());
 
         fixtures.writeRawPolicy("bad-json", "{bad json");
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3),
-                fixtures.bundle("bad-json", SCHEME, fixtures.signatures(MESSAGE, 1, 2, 3))).isPassed());
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle("bad-json", SCHEME, AGGREGATE_SIGNATURE)).isPassed());
 
-        Map<String, Object> wrongSchemePolicy = fixtures.policyDocument(
-                "wrong-scheme-policy", "BLS", fixtures.getKeyPairs(), 3, 5);
-        objectMapper.writerWithDefaultPrettyPrinter()
-                .writeValue(fixtures.getPolicyRoot().resolve("wrong-scheme-policy.json").toFile(), wrongSchemePolicy);
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3),
-                fixtures.bundle("wrong-scheme-policy", SCHEME, fixtures.signatures(MESSAGE, 1, 2, 3))).isPassed());
+        fixtures.writePolicy("bad-key", SCHEME, 3, 5, "YQ==");
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle("bad-key", SCHEME, AGGREGATE_SIGNATURE)).isPassed());
+
+        fixtures.writePolicy("wrong-scheme", "ECDSA-P256-SHA256", 3, 5, GROUP_PUBLIC_KEY);
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle("wrong-scheme", SCHEME, AGGREGATE_SIGNATURE)).isPassed());
     }
 
     @Test
-    void rejectsSchemeThresholdTotalNodesAndParticipantMapMismatches() throws Exception {
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3),
-                fixtures.bundle(POLICY_ID, "BLS", fixtures.signatures(MESSAGE, 1, 2, 3))).isPassed());
-        assertFalse(verifier.verify(MESSAGE, 2, 5, fixtures.ids(1, 2, 3),
-                fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2, 3))).isPassed());
-        assertFalse(verifier.verify(MESSAGE, 3, 4, fixtures.ids(1, 2, 3),
-                fixtures.bundle(fixtures.signatures(MESSAGE, 1, 2, 3))).isPassed());
-
-        Map<String, Object> extra = fixtures.signatures(MESSAGE, 1, 2, 3);
-        extra.put("4", fixtures.sign(MESSAGE, fixtures.getKeyPairs().get(4)));
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3), fixtures.bundle(extra)).isPassed());
-
-        Map<String, Object> unknown = fixtures.signatures(MESSAGE, 1, 2, 3);
-        unknown.put("6", fixtures.sign(MESSAGE, fixtures.getKeyPairs().get(1)));
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3, 6), fixtures.bundle(unknown)).isPassed());
+    void rejectsRequestPolicyParameterMismatch() {
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                2,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE)).isPassed());
+        assertFalse(verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                4,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE)).isPassed());
     }
 
     @Test
-    void rejectsLegacyMockShapeInRealModeAndAllowsItOnlyInExplicitMockMode() throws Exception {
-        Map<String, Object> legacy = new LinkedHashMap<>();
-        legacy.put("valid", true);
-        legacy.put("participantSignatures", fixtures.signatures(MESSAGE, 1, 2, 3));
-
-        assertFalse(verifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3), legacy).isPassed());
-
-        ThresholdSignatureVerificationProperties mockProperties = new ThresholdSignatureVerificationProperties();
+    void mockModeCannotBypassStrictVerification() {
+        ThresholdSignatureVerificationProperties mockProperties =
+                new ThresholdSignatureVerificationProperties();
         mockProperties.setMode(ThresholdSignatureVerificationProperties.Mode.MOCK);
-        ThresholdSignatureVerifier disabledMockVerifier = verifier(mockProperties);
-        assertFalse(disabledMockVerifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3), legacy).isPassed());
 
-        mockProperties.setAllowLegacyMock(true);
-        ThresholdSignatureVerifier enabledMockVerifier = verifier(mockProperties);
         ThresholdSignatureVerifier.VerificationDecision decision =
-                enabledMockVerifier.verify(MESSAGE, 3, 5, fixtures.ids(1, 2, 3), legacy);
-        assertTrue(decision.isPassed());
-        assertEquals("MOCK", decision.getVerifierMode());
-        assertEquals("STRUCTURAL_MOCK", decision.getVerifierEngine());
+                verifier(mockProperties).verify(
+                        BUSINESS_ID,
+                        MESSAGE,
+                        3,
+                        5,
+                        fixtures.ids(1, 2, 4),
+                        fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE));
+
+        assertFalse(decision.isPassed());
+        assertTrue(decision.getReason().contains("mock threshold signatures are disabled"));
     }
 
-    private ThresholdSignatureVerifier verifier(ThresholdSignatureVerificationProperties props) {
+    private ThresholdSignatureVerifier.VerificationDecision verifyValid() {
+        return verifier.verify(
+                BUSINESS_ID,
+                MESSAGE,
+                3,
+                5,
+                fixtures.ids(1, 2, 4),
+                fixtures.bundle(POLICY_ID, SCHEME, AGGREGATE_SIGNATURE));
+    }
+
+    private ThresholdSignatureVerifier verifier(
+            ThresholdSignatureVerificationProperties verificationProperties) {
         return new ThresholdSignatureVerifier(
                 new ThresholdSignaturePolicyLoader(objectMapper, fixtures.getPolicyRoot()),
-                props);
+                verificationProperties);
     }
 }

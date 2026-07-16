@@ -1,6 +1,5 @@
 package com.traffic.wecross.crossverification.threshold;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -8,80 +7,78 @@ import org.springframework.stereotype.Component;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.PublicKey;
-import java.util.LinkedHashMap;
+import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 @Component
 public class ThresholdSignaturePolicyLoader {
-    public static final String SUPPORTED_SCHEME = "ECDSA-P256-SHA256";
+    public static final String SUPPORTED_SCHEME = "FROST-ED25519-SHA512";
+    private static final int ED25519_PUBLIC_KEY_BYTES = 32;
     private static final Pattern SAFE_ID = Pattern.compile("^[A-Za-z0-9._-]+$");
     private static final String DEFAULT_POLICY_ROOT = "config/threshold";
 
     private final ObjectMapper objectMapper;
-    private final PemPublicKeyParser publicKeyParser;
     private final Path policyRoot;
+    private final Map<String, ThresholdSignaturePolicy> dynamicPolicies = new ConcurrentHashMap<>();
 
     @Autowired
     public ThresholdSignaturePolicyLoader(ObjectMapper objectMapper) {
-        this(objectMapper, Paths.get(DEFAULT_POLICY_ROOT), new PemPublicKeyParser());
+        this(objectMapper, Paths.get(DEFAULT_POLICY_ROOT));
     }
 
     public ThresholdSignaturePolicyLoader(ObjectMapper objectMapper, Path policyRoot) {
-        this(objectMapper, policyRoot, new PemPublicKeyParser());
-    }
-
-    public ThresholdSignaturePolicyLoader(
-            ObjectMapper objectMapper,
-            Path policyRoot,
-            PemPublicKeyParser publicKeyParser) {
         this.objectMapper = objectMapper;
-        this.publicKeyParser = publicKeyParser;
         this.policyRoot = policyRoot;
     }
 
     public ThresholdSignaturePolicy load(String policyId) {
         validatePolicyId(policyId);
+        ThresholdSignaturePolicy dynamicPolicy = dynamicPolicies.get(policyId);
+        if (dynamicPolicy != null) {
+            return dynamicPolicy;
+        }
         Path policyPath = resolvePolicyPath(policyId);
         PolicyDocument document;
         try {
-            document = objectMapper.readValue(
-                    policyPath.toFile(),
-                    new TypeReference<PolicyDocument>() { });
+            document = objectMapper.readValue(policyPath.toFile(), PolicyDocument.class);
         } catch (Exception e) {
             throw new IllegalArgumentException("threshold policy could not be read: " + policyId, e);
         }
         validateDocument(policyId, document);
-
-        Map<Integer, PublicKey> publicKeys = new LinkedHashMap<>();
-        for (Map.Entry<String, String> entry : document.publicKeys.entrySet()) {
-            Integer participantId = parseParticipantId(entry.getKey());
-            if (participantId < 1 || participantId > document.totalNodes) {
-                throw new IllegalArgumentException("threshold policy contains participant outside totalNodes");
-            }
-            if (publicKeys.containsKey(participantId)) {
-                throw new IllegalArgumentException("threshold policy contains duplicate participant id");
-            }
-            try {
-                publicKeys.put(participantId, publicKeyParser.parse(entry.getValue()));
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("threshold policy public key is invalid for participant "
-                        + participantId, e);
-            }
+        byte[] groupPublicKey;
+        try {
+            groupPublicKey = Base64.getDecoder().decode(document.groupPublicKey);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("threshold policy groupPublicKey must be valid Base64", e);
         }
-        for (int participantId = 1; participantId <= document.totalNodes; participantId++) {
-            if (!publicKeys.containsKey(participantId)) {
-                throw new IllegalArgumentException("threshold policy missing public key for participant "
-                        + participantId);
-            }
+        if (groupPublicKey.length != ED25519_PUBLIC_KEY_BYTES) {
+            throw new IllegalArgumentException("threshold policy groupPublicKey must decode to 32 bytes");
         }
         return new ThresholdSignaturePolicy(
                 document.policyId,
                 document.scheme,
                 document.threshold,
                 document.totalNodes,
-                publicKeys);
+                groupPublicKey);
+    }
+
+    public void registerDynamicPolicy(ThresholdSignaturePolicy policy) {
+        if (policy == null) {
+            throw new IllegalArgumentException("threshold policy must not be null");
+        }
+        validatePolicyId(policy.getPolicyId());
+        if (!SUPPORTED_SCHEME.equals(policy.getScheme())) {
+            throw new IllegalArgumentException("threshold policy scheme must be " + SUPPORTED_SCHEME);
+        }
+        if (policy.getThreshold() < 2 || policy.getThreshold() > policy.getTotalNodes()) {
+            throw new IllegalArgumentException("dynamic threshold policy is invalid");
+        }
+        if (policy.getGroupPublicKey().length != ED25519_PUBLIC_KEY_BYTES) {
+            throw new IllegalArgumentException("threshold policy groupPublicKey must decode to 32 bytes");
+        }
+        dynamicPolicies.put(policy.getPolicyId(), policy);
     }
 
     public void validatePolicyId(String policyId) {
@@ -140,16 +137,8 @@ public class ThresholdSignaturePolicyLoader {
         if (document.threshold > document.totalNodes) {
             throw new IllegalArgumentException("threshold policy threshold must be less than or equal to totalNodes");
         }
-        if (document.publicKeys == null || document.publicKeys.size() != document.totalNodes) {
-            throw new IllegalArgumentException("threshold policy publicKeys size must equal totalNodes");
-        }
-    }
-
-    private Integer parseParticipantId(String value) {
-        try {
-            return Integer.valueOf(value);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("threshold policy participant id must be numeric", e);
+        if (document.groupPublicKey == null || document.groupPublicKey.trim().isEmpty()) {
+            throw new IllegalArgumentException("threshold policy groupPublicKey must not be empty");
         }
     }
 
@@ -158,6 +147,6 @@ public class ThresholdSignaturePolicyLoader {
         public String scheme;
         public Integer threshold;
         public Integer totalNodes;
-        public Map<String, String> publicKeys;
+        public String groupPublicKey;
     }
 }
