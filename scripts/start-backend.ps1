@@ -8,7 +8,7 @@ param(
     [string]$RecordStorage = 'mysql',
     [string]$MysqlUrl = '',
     [string]$MysqlUsername = '',
-    [string]$MysqlPassword = '',
+    [string]$MysqlPassword = '1085134460Sk',
     [ValidateSet('true', 'false')]
     [string]$MysqlInitializeSchema = 'true',
     [string]$MavenLocalRepository = ''
@@ -66,6 +66,9 @@ if ($RecordStorage -eq 'mysql') {
     if ([string]::IsNullOrWhiteSpace($MysqlPassword) -and -not [string]::IsNullOrWhiteSpace($env:VERIFICATION_RECORDS_MYSQL_PASSWORD)) {
         $MysqlPassword = $env:VERIFICATION_RECORDS_MYSQL_PASSWORD
     }
+    if ([string]::IsNullOrWhiteSpace($MysqlPassword)) {
+        Write-Warning "MySQL password is empty. If this MySQL account requires a password, pass -MysqlPassword or set VERIFICATION_RECORDS_MYSQL_PASSWORD. For a temporary local startup without record persistence, pass -RecordStorage memory."
+    }
 }
 
 $env:ZOKRATES_EXECUTABLE = $ZokratesPath
@@ -98,6 +101,14 @@ Push-Location -LiteralPath $repoRoot
 try {
     & mvn -q "-Dmaven.repo.local=$MavenLocalRepository" spring-boot:run
     if ($LASTEXITCODE -ne 0) {
+        if ($RecordStorage -eq 'mysql') {
+            Write-Host ""
+            Write-Host "Backend failed while MySQL record storage was enabled."
+            Write-Host "Check that MySQL is running, database traffic_verification exists, and the username/password are correct."
+            Write-Host "Examples:"
+            Write-Host '  .\scripts\start-backend.ps1 -MysqlUsername root -MysqlPassword "<password>"'
+            Write-Host '  .\scripts\start-backend.ps1 -RecordStorage memory'
+        }
         throw "Backend exited with code $LASTEXITCODE"
     }
 } finally {

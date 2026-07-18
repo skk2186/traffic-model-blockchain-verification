@@ -1,3 +1,4 @@
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\ThresholdSignatureFixtureController.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\ThresholdSignatureVerificationController.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\zkp\VerifyingKeyResolver.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\dto\MerkleVerifyRequest.java
@@ -29,14 +30,17 @@ E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\sr
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\ledger\TrustedLedgerService.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\record\MysqlVerificationRecordRepository.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\ZkpVerificationController.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\service\DynamicFrostFixtureService.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\service\MerkleVerificationService.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\zkp\ProofNormalizationException.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\VerificationRecordController.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\GlobalExceptionHandler.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\threshold\ThresholdSignaturePolicy.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\dto\BaseVerifyRequest.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\threshold\ThresholdSignatureMessage.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\ledger\LedgerSyncResult.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\ledger\VerificationLedgerService.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\dto\ThresholdSignatureFixtureRequest.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\dto\VerificationRecordQuery.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\dto\PageResult.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\zkp\ZokratesProcessRunner.java
