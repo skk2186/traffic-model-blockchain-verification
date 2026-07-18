@@ -90,6 +90,6 @@ class LegacyVerificationControllerCompatibilityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.passed").value(false))
                 .andExpect(jsonPath("$.detail.verifierMode").value("REAL"))
-                .andExpect(jsonPath("$.detail.verifierEngine").value("JAVA_SIGNATURE"));
+                .andExpect(jsonPath("$.detail.verifierEngine").value("BOUNCY_CASTLE_ED25519_RFC8032"));
     }
 }

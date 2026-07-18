@@ -1,0 +1,18 @@
+{
+  "businessId": "traffic-threshold-frost-test",
+  "message": "traffic speed range approved",
+  "threshold": 3,
+  "totalNodes": 5,
+  "participantIds": [
+    1,
+    2,
+    4
+  ],
+  "signatureBundle": {
+    "scheme": "FROST-ED25519-SHA512",
+    "policyId": "traffic-consortium-frost-v1",
+    "aggregateSignature": "zEnSm9HxSLxWLIsrzjXf/udXHcU0u5wfQCR+sBJn4wY5CDl5m/Atzx8Y4scqlyQJpFWjetzckKWUCK35xcsnDw=="
+  },
+  "writeLedger": false,
+  "ledgerTargets": []
+}

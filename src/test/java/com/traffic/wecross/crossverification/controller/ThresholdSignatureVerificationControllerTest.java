@@ -61,7 +61,7 @@ class ThresholdSignatureVerificationControllerTest {
 
     @Test
     void verifiesThresholdSignatureEndpointPassAndDoesNotWriteLedgerWhenDisabled() throws Exception {
-        ThresholdSignatureVerifyRequest request = fixtures.validRequest(1, 2, 4);
+        ThresholdSignatureVerifyRequest request = fixtures.validRequest();
         request.writeLedger = false;
 
         MvcResult mvcResult = mockMvc.perform(post("/api/cross-verification/threshold-signature/verify")
@@ -70,8 +70,9 @@ class ThresholdSignatureVerificationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PASS"))
                 .andExpect(jsonPath("$.detail.verifierMode").value("REAL"))
-                .andExpect(jsonPath("$.detail.verifierEngine").value("JAVA_SIGNATURE"))
-                .andExpect(jsonPath("$.detail.scheme").value("ECDSA-P256-SHA256"))
+                .andExpect(jsonPath("$.detail.verifierEngine").value("BOUNCY_CASTLE_ED25519_RFC8032"))
+                .andExpect(jsonPath("$.detail.scheme").value("FROST-ED25519-SHA512"))
+                .andExpect(jsonPath("$.detail.aggregateSignatureVerified").value(true))
                 .andExpect(jsonPath("$.detail.validSignatureCount").value(3))
                 .andExpect(jsonPath("$.inputHash").value(HashUtils.sha256Hex(MESSAGE)))
                 .andExpect(jsonPath("$.ledger.status").value("DISABLED"))
@@ -90,7 +91,7 @@ class ThresholdSignatureVerificationControllerTest {
 
     @Test
     void returnsFailWhenMessageIsTamperedAfterSigning() throws Exception {
-        ThresholdSignatureVerifyRequest request = fixtures.validRequest(1, 2, 4);
+        ThresholdSignatureVerifyRequest request = fixtures.validRequest();
         request.message = "tampered " + MESSAGE;
         request.writeLedger = false;
 

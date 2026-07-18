@@ -14,3 +14,4 @@
 backend-run*.log
 server*.log
 *.class
+/tools/frost-fixture-generator/target/

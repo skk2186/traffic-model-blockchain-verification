@@ -1,13 +1,7 @@
 {
   "policyId": "traffic-consortium-v1",
-  "scheme": "ECDSA-P256-SHA256",
+  "scheme": "FROST-ED25519-SHA512",
   "threshold": 3,
   "totalNodes": 5,
-  "publicKeys": {
-    "1": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEt1+om1m8vUh+7Bl7dLGcR++WPyfK\nSnfX1D1kc3YTE/IVvCq+zXjEhlhdeGYCGsAtiav8EYaYAnK1Rdc//7dwuQ==\n-----END PUBLIC KEY-----",
-    "2": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE7+A3BhXJiZ0fQkinQGr/WBvcp6lF\ncoOuFWbi8u/8Axt1rox8t9fhRIFNZmBU4SvPR0qpn2DfJYvySsaBNw/PxA==\n-----END PUBLIC KEY-----",
-    "3": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEplStA0gIPkslpAkv/cmi2UMTY3OY\nqMngdFgBL+agceMZx2mchKBiN1pdB0wnXb66FF1z2V//WU9Em26jivUxpg==\n-----END PUBLIC KEY-----",
-    "4": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQaK1674Dp/U4H7egfYM6+oZIlo06\nYYyCF8r7w989h9GEwLrv/nkyVWzS6OwL+jwUzNzdVTl5EgnBe3qJFhVU9A==\n-----END PUBLIC KEY-----",
-    "5": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdFXI009sp9M0KXy6LImqYi/0HFFE\nciqFsuzRvTRrvFCWsw0f6DTbiO6k8dt7EJPLtZP0YUE4HSLCjc4wIT3dZA==\n-----END PUBLIC KEY-----"
-  }
+  "groupPublicKey": "n2yyWrYKFQexB5LByQRcyWNIu9pKNiaiQ1VIhNf2blw="
 }
