@@ -70,7 +70,7 @@ public class ZkpVerificationService {
         detail.put("reasonMessage", decision.getReasonMessage());
 
         VerifyStatus status = decision.isPassed() ? VerifyStatus.PASS : VerifyStatus.FAIL;
-        String message = decision.isPassed() ? "隐私证明验证通过" : "隐私证明验证未通过";
+        String message = decision.isPassed() ? "ZKP验证通过" : "ZKP验证未通过";
         VerificationResult result = recordService.createResult(
                 VerifyType.ZKP,
                 request.businessId,
@@ -159,7 +159,7 @@ public class ZkpVerificationService {
     }
 
     private VerificationResult buildErrorResult(ZkpVerifyRequest request, String message) {
-        String errorMessage = message == null ? "隐私证明验证异常" : message;
+        String errorMessage = message == null ? "ZKP验证异常" : message;
         Map<String, Object> detail = ErrorResultFactory.detail("ZKP_VERIFY_ERROR", errorMessage);
         LedgerSyncResult ledger = LedgerSyncResult.disabled();
         return recordService.createResult(

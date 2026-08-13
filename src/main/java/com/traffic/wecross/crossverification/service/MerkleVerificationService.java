@@ -45,7 +45,7 @@ public class MerkleVerificationService {
                 || tree.rootHash.equalsIgnoreCase(request.expectedRoot.trim());
         String message = request.expectedRoot == null || request.expectedRoot.trim().isEmpty()
                 ? "已完成数据完整性摘要生成"
-                : passed ? "数据完整性验证通过" : "数据完整性验证未通过";
+                : passed ? "Merkle验证通过" : "Merkle验证未通过";
 
         Map<String, Object> detail = JsonUtils.detail();
         detail.put("dataSourceName", request.dataSourceName);
@@ -84,7 +84,7 @@ public class MerkleVerificationService {
     }
 
     private VerificationResult buildErrorResult(MerkleVerifyRequest request, String message) {
-        String errorMessage = message == null ? "数据完整性验证异常" : message;
+        String errorMessage = message == null ? "Merkle验证异常" : message;
         Map<String, Object> detail = ErrorResultFactory.detail("MERKLE_VERIFY_ERROR", errorMessage);
         LedgerSyncResult ledger = LedgerSyncResult.disabled();
         return recordService.createResult(

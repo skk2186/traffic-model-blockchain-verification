@@ -1,9 +1,9 @@
 package com.traffic.wecross.crossverification.record;
 
 public enum VerifyType {
-    MERKLE("数据完整性验证"),
-    ZKP("隐私证明验证"),
-    THRESHOLD_SIGNATURE("多方签名验证");
+    MERKLE("Merkle验证"),
+    ZKP("ZKP验证"),
+    THRESHOLD_SIGNATURE("门限阈值签名");
 
     private final String verifyName;
 
