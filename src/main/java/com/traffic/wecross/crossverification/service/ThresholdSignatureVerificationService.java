@@ -11,6 +11,7 @@ import com.traffic.wecross.crossverification.util.ErrorResultFactory;
 import com.traffic.wecross.crossverification.util.HashUtils;
 import com.traffic.wecross.crossverification.util.JsonUtils;
 import com.traffic.wecross.crossverification.util.ValidationUtils;
+import com.traffic.wecross.crossverification.util.CrossChainSelectionValidator;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -60,6 +61,8 @@ public class ThresholdSignatureVerificationService {
                         request.signatureBundle);
 
         Map<String, Object> detail = JsonUtils.detail();
+        detail.put("sourceChain", request.sourceChain);
+        detail.put("verificationChain", request.verificationChain);
         detail.put("verifierMode", decision.getVerifierMode());
         detail.put("verifierEngine", decision.getVerifierEngine());
         detail.put("scheme", decision.getScheme());
@@ -102,6 +105,7 @@ public class ThresholdSignatureVerificationService {
         }
         ValidationUtils.requireText(request.businessId, "businessId");
         ValidationUtils.requireText(request.message, "message");
+        CrossChainSelectionValidator.validate(request.sourceChain, request.verificationChain);
         ValidationUtils.validateThresholdParticipants(
                 request.threshold, request.totalNodes, request.participantIds);
         if (request.participantIds.size() < request.threshold) {

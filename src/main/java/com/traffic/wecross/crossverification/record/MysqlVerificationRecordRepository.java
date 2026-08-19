@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Repository
 @ConditionalOnProperty(name = "verification.records.storage", havingValue = "mysql")
@@ -257,6 +258,33 @@ public class MysqlVerificationRecordRepository {
         if (resultSet.wasNull()) {
             record.createdAt = null;
         }
+        Map<String, Object> detail = JsonUtils.mapFromJson(resultSet.getString("detail_json"));
+        record.sourceChain = firstNonBlank(stringValue(detail.get("sourceChain")),
+                chainFromPath(record.chainPath != null ? record.chainPath : record.resourcePath));
+        record.verificationChain = stringValue(detail.get("verificationChain"));
+        Object chainVerification = detail.get("chainVerification");
+        if (chainVerification instanceof Map) {
+            Map<?, ?> chain = (Map<?, ?>) chainVerification;
+            record.sourceChain = firstNonBlank(stringValue(chain.get("sourceChain")), record.sourceChain);
+            record.verificationChain = firstNonBlank(
+                    stringValue(chain.get("verificationChain")), record.verificationChain);
+        }
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return value != null && !value.trim().isEmpty() ? value : fallback;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private String chainFromPath(String path) {
+        if (path == null) {
+            return null;
+        }
+        String[] parts = path.split("\\.");
+        return parts.length >= 2 ? parts[1] : null;
     }
 
     private Connection getConnection() throws SQLException {

@@ -11,6 +11,8 @@ public class VerificationRecord {
     public String ledgerStatus;
     public String chainPath;
     public String resourcePath;
+    public String sourceChain;
+    public String verificationChain;
     public String txHash;
     public String crossChainStatus;
     public String crossChainTxHash;

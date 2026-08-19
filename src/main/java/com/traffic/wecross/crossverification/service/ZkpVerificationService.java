@@ -10,6 +10,7 @@ import com.traffic.wecross.crossverification.util.HashUtils;
 import com.traffic.wecross.crossverification.util.JsonUtils;
 import com.traffic.wecross.crossverification.util.ValidationUtils;
 import com.traffic.wecross.crossverification.util.ErrorResultFactory;
+import com.traffic.wecross.crossverification.util.CrossChainSelectionValidator;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -57,6 +58,8 @@ public class ZkpVerificationService {
 
         Map<String, Object> detail = JsonUtils.detail();
         detail.put("circuitId", request.circuitId);
+        detail.put("sourceChain", request.sourceChain);
+        detail.put("verificationChain", request.verificationChain);
         detail.put("verifyingKeyId", decision.getVerifyingKeyId());
         detail.put("publicInputHash", inputHash);
         detail.put("proofSummary", proofSummary(request));
@@ -70,7 +73,7 @@ public class ZkpVerificationService {
         detail.put("reasonMessage", decision.getReasonMessage());
 
         VerifyStatus status = decision.isPassed() ? VerifyStatus.PASS : VerifyStatus.FAIL;
-        String message = decision.isPassed() ? "ZKP验证通过" : "ZKP验证未通过";
+        String message = decision.isPassed() ? "隐私证明验证通过" : "隐私证明验证未通过";
         VerificationResult result = recordService.createResult(
                 VerifyType.ZKP,
                 request.businessId,
@@ -92,6 +95,7 @@ public class ZkpVerificationService {
         ValidationUtils.requireText(request.businessId, "businessId");
         ValidationUtils.requireText(request.circuitId, "circuitId");
         ValidationUtils.requireSha256HexIfPresent(request.publicInputHash, "publicInputHash");
+        CrossChainSelectionValidator.validate(request.sourceChain, request.verificationChain);
         if (isEmptyContent(request.proof) && isEmptyContent(request.publicSignals)) {
             throw new IllegalArgumentException("proof or publicSignals must contain verifiable content");
         }
@@ -159,7 +163,7 @@ public class ZkpVerificationService {
     }
 
     private VerificationResult buildErrorResult(ZkpVerifyRequest request, String message) {
-        String errorMessage = message == null ? "ZKP验证异常" : message;
+        String errorMessage = message == null ? "隐私证明验证异常" : message;
         Map<String, Object> detail = ErrorResultFactory.detail("ZKP_VERIFY_ERROR", errorMessage);
         LedgerSyncResult ledger = LedgerSyncResult.disabled();
         return recordService.createResult(

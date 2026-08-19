@@ -87,6 +87,7 @@ public class VerificationRecordService {
         record.chainPath = ledger == null ? null : ledger.chainPath;
         record.resourcePath = ledger == null ? null : ledger.resourcePath;
         record.txHash = ledger == null ? null : ledger.txHash;
+        applyChainSelection(record, detail);
         record.createdAt = now;
         record.resultHash = resultHash == null ? buildResultHash(record, inputHash, proofHash, detail) : resultHash;
         VerificationResult result = toResult(record, message, inputHash, proofHash, ledger, detail);
@@ -156,6 +157,7 @@ public class VerificationRecordService {
         record.chainPath = ledger.chainPath;
         record.resourcePath = ledger.resourcePath;
         record.txHash = ledger.txHash;
+        applyChainSelection(record, chainVerification);
         if (chainVerification != null) {
             record.crossChainStatus = stringValue(chainVerification.get("status"));
             record.crossChainTxHash = stringValue(chainVerification.get("txHash"));
@@ -233,6 +235,8 @@ public class VerificationRecordService {
         target.ledgerStatus = source.ledgerStatus;
         target.chainPath = source.chainPath;
         target.resourcePath = source.resourcePath;
+        target.sourceChain = source.sourceChain;
+        target.verificationChain = source.verificationChain;
         target.txHash = source.txHash;
         target.crossChainStatus = source.crossChainStatus;
         target.crossChainTxHash = source.crossChainTxHash;
@@ -250,6 +254,38 @@ public class VerificationRecordService {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private void applyChainSelection(VerificationRecord record, Map<String, Object> values) {
+        if (record == null || values == null) {
+            return;
+        }
+        record.sourceChain = firstNonBlank(stringValue(values.get("sourceChain")), record.sourceChain);
+        record.verificationChain = firstNonBlank(
+                stringValue(values.get("verificationChain")), record.verificationChain);
+        Object nested = values.get("chainVerification");
+        if (nested instanceof Map) {
+            Map<?, ?> chainVerification = (Map<?, ?>) nested;
+            record.sourceChain = firstNonBlank(
+                    stringValue(chainVerification.get("sourceChain")), record.sourceChain);
+            record.verificationChain = firstNonBlank(
+                    stringValue(chainVerification.get("verificationChain")), record.verificationChain);
+        }
+        if (record.sourceChain == null) {
+            record.sourceChain = chainFromPath(record.chainPath != null ? record.chainPath : record.resourcePath);
+        }
+    }
+
+    private String firstNonBlank(String first, String fallback) {
+        return first != null && !first.trim().isEmpty() ? first : fallback;
+    }
+
+    private String chainFromPath(String path) {
+        if (path == null) {
+            return null;
+        }
+        String[] parts = path.split("\\.");
+        return parts.length >= 2 ? parts[1] : null;
     }
 
     private String normalizeBusinessId(String businessId, String recordId) {

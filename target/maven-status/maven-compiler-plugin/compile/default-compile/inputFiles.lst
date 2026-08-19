@@ -1,5 +1,6 @@
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\ThresholdSignatureFixtureController.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\controller\ThresholdSignatureVerificationController.java
+E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\util\CrossChainSelectionValidator.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\zkp\VerifyingKeyResolver.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\dto\MerkleVerifyRequest.java
 E:\桂电\区块链\多模态交通大模型\traffic\traffic-model-blockchain-verification\src\main\java\com\traffic\wecross\crossverification\threshold\PemPublicKeyParser.java
